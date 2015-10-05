@@ -7394,7 +7394,7 @@ END MESH
 %            DEGREES OF FREEDOM
             FIELD VARIABLES, S11,S22,S33,S12,S13,S23
             DISPLACED MESH
-            DISPLACEMENT SCALE FACTOR, 1.d0
+            DISPLACEMENT SCALE FACTOR, 100.d0
          END PRINT STATE
 
 %       The lines below are just examples - they will do nothing for this simulation (no code exists to interpret them)
