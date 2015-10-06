@@ -806,7 +806,7 @@
 
 %  Print the initial mesh to a file named initial_mesh.dat
 
-   PRINT INITIAL MESH, initial_mesh.dat
+   PRINT INITIAL MESH, Output_files\initial_mesh.dat
 
 %   TIME, VALUE, 0.d0        % Use this to specify the initial time
 %   TIME, INCREMENT, 0.01d0  % Use this to specify a time increment (often needed for check stiffness)
@@ -844,7 +844,7 @@
 %                        UNSYMMETRIC  (optional - only for unsymmetric stiffness)
 
 
-         SOLVER, DIRECT, NONLINEAR, 1.d-05,15
+         SOLVER, DIRECT, LINEAR
 
 
 %      This prints the DOF values and projected nodal state for all solid elements to a tecplot readable file
@@ -855,7 +855,7 @@
 %         In this example the states are the stresses sxx,syy,szz,sxy,sxz,syz
          PRINT STATE, Output_files\contourplots.dat
             DEGREES OF FREEDOM
-            FIELD VARIABLES, S11,S22,S33,S12
+            FIELD VARIABLES, S11,S22,S12
             DISPLACED MESH
             DISPLACEMENT SCALE FACTOR, 25.d0
          END PRINT STATE

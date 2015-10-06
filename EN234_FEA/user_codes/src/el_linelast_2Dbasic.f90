@@ -308,7 +308,7 @@ subroutine fieldvars_linelast_2dbasic(lmn, element_identifier, n_nodes, node_pro
     real (prec)  ::  sdev(3)                           ! Deviatoric stress
     real (prec)  ::  D(3,3)                            ! stress = D*(strain+dstrain)  (NOTE FACTOR OF 2 in shear strain)
     real (prec)  ::  B(3,length_dof_array)             ! strain = B*(dof_total+dof_increment)
-    real (prec)  ::  dxidx(3,3), determinant           ! Jacobian inverse and determinant
+    real (prec)  ::  dxidx(2,2), determinant           ! Jacobian inverse and determinant
     real (prec)  ::  x(2,length_coord_array/2)         ! Re-shaped coordinate array x(i,a) is ith coord of ath node
     real (prec)  :: E, xnu, D44, D11, D12              ! Material properties
     real (prec)  :: p, smises                          ! Pressure and Mises stress
@@ -347,7 +347,7 @@ subroutine fieldvars_linelast_2dbasic(lmn, element_identifier, n_nodes, node_pro
         call calculate_shapefunctions(xi(1:2,kint),n_nodes,N,dNdxi)
         dxdxi = matmul(x(1:2,1:n_nodes),dNdxi(1:n_nodes,1:2))
         call invert_small(dxdxi,dxidx,determinant)
-        dNdx(1:n_nodes,1:3) = matmul(dNdxi(1:n_nodes,1:3),dxidx)
+        dNdx(1:n_nodes,1:2) = matmul(dNdxi(1:n_nodes,1:2),dxidx)
         B = 0.d0
         B(1,1:2*n_nodes-1:2) = dNdx(1:n_nodes,1)
         B(2,2:2*n_nodes:2) = dNdx(1:n_nodes,2)
