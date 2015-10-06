@@ -284,7 +284,7 @@
 %     The parameters are no. nodes on the element, no. properties, total no. state variables, integer identifier
 
       ELEMENTS
-        PARAMETERS, 3, 0, 101
+        PARAMETERS, 3, 0, 1002
 %       Define element properties - the values are passed to user subroutine elstif in the order they are listed here
 %       For the example provided, the params are Youngs Modulus, Poissons ratio
         PROPERTIES
@@ -787,7 +787,7 @@
         END NODESET
 
 
-       END ELEMENTSET
+%       END ELEMENTSET
 
 %       The DEGREE OF FREEDOM key assigns values to nodal DOFs
 %       The syntax is node set name, DOF number, VALUE/HISTORY/SUBROUTINE, value/history name/subroutine parameter list name.
@@ -857,7 +857,7 @@
             DEGREES OF FREEDOM
             FIELD VARIABLES, S11,S22,S33,S12
             DISPLACED MESH
-            DISPLACEMENT SCALE FACTOR, 1.d0
+            DISPLACEMENT SCALE FACTOR, 25.d0
          END PRINT STATE
 
 

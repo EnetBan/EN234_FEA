@@ -25,10 +25,16 @@ program en234fea
 !  open (UNIT = IOW, FILE = outfil, STATUS = 'unknown', ERR=500)
 
 ! This simulation takes a few minutes - be patient!
-  infil = './input_files/holeplate_3d_dynamic.in'
-  open (unit = IOR, file = infil, status = 'old', ERR=500)
-  outfil = './Output_files/holeplate_3d_dynamic.out'
-  open (UNIT = IOW, FILE = outfil, STATUS = 'unknown', ERR=500)
+!  infil = './input_files/holeplate_3d_dynamic.in'
+!  open (unit = IOR, file = infil, status = 'old', ERR=500)
+!  outfil = './Output_files/holeplate_3d_dynamic.out'
+!  open (UNIT = IOW, FILE = outfil, STATUS = 'unknown', ERR=500)
+
+!HW3 Testing
+    infil = './input_files/Holeplate_2d_tri3.in'
+    open (unit = IOR, file = infil, status = 'old', ERR=500)
+    outfil = './Output_files/Holeplate_2d_tri3.out'
+    open (UNIT = IOW, FILE = outfil, STATUS = 'unknown', ERR=500)
 
 
 !  None of the files below will work until you write the codes that will use them!
