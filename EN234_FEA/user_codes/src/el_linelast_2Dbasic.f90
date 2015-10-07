@@ -72,18 +72,20 @@ subroutine el_linelast_2dbasic(lmn, element_identifier, n_nodes, node_property_l
     !     element_properties(2)         Poisson's ratio
 
     fail = .false.
-    
-    x = reshape(element_coords,(/3,length_coord_array/3/))
 
-    if (n_nodes == 4) n_points = 1
-    if (n_nodes == 10) n_points = 4
-    if (n_nodes == 8) n_points = 8
-    if (n_nodes == 20) n_points = 27
+    x = reshape(element_coords,(/2,length_coord_array/2/))
+
+    if (n_nodes == 3) n_points = 1
+    if (n_nodes == 6) n_points = 4
+    if (n_nodes == 4) n_points = 4
+    if (n_nodes == 8) n_points = 9
 
     call initialize_integration_points(n_points, n_nodes, xi, w)
 
     element_residual = 0.d0
     element_stiffness = 0.d0
+
+
 	
     D = 0.d0
     E = element_properties(1)
@@ -97,6 +99,7 @@ subroutine el_linelast_2dbasic(lmn, element_identifier, n_nodes, node_property_l
     D(3,3) = d44
     D(1:2,3) = 0.d0
     D(3,1:2) = 0.d0
+
   
     !     --  Loop over integration points
     do kint = 1, n_points
@@ -318,12 +321,12 @@ subroutine fieldvars_linelast_2dbasic(lmn, element_identifier, n_nodes, node_pro
     !     element_properties(1)         Young's modulus
     !     element_properties(2)         Poisson's ratio
 
-    x = reshape(element_coords,(/3,length_coord_array/3/))
+    x = reshape(element_coords,(/2,length_coord_array/2/))
 
-    if (n_nodes == 4) n_points = 1
-    if (n_nodes == 10) n_points = 4
-    if (n_nodes == 8) n_points = 8
-    if (n_nodes == 20) n_points = 27
+    if (n_nodes == 3) n_points = 1
+    if (n_nodes == 6) n_points = 4
+    if (n_nodes == 4) n_points = 4
+    if (n_nodes == 8) n_points = 9
 
     call initialize_integration_points(n_points, n_nodes, xi, w)
 
