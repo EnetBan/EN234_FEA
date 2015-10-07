@@ -365,7 +365,7 @@ subroutine fieldvars_linelast_2dbasic(lmn, element_identifier, n_nodes, node_pro
         sdev = stress
         sdev(1:2) = sdev(1:2)-p
         smises = dsqrt( dot_product(sdev(1:2),sdev(1:2)) + 2.d0*sdev(3)*sdev(3))*dsqrt(1.5d0)
-        S33 = (E/((1-2*xnu)*(1+xnu))*xnu*(strain(1)+strain(2))
+        S33 = (E/((1-2*xnu)*(1+xnu))*xnu*(strain(1)+strain(2)))
         ! In the code below the strcmp( string1, string2, nchar) function returns true if the first nchar characters in strings match
         do k = 1,n_field_variables
             if (strcmp(field_variable_names(k),'S11',3) ) then
