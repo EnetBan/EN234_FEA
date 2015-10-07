@@ -315,6 +315,7 @@ subroutine fieldvars_linelast_2dbasic(lmn, element_identifier, n_nodes, node_pro
     real (prec)  ::  x(2,length_coord_array/2)         ! Re-shaped coordinate array x(i,a) is ith coord of ath node
     real (prec)  :: E, xnu, D44, D11, D12              ! Material properties
     real (prec)  :: p, smises                          ! Pressure and Mises stress
+    real (prec)  :: S33                                ! Transverse Stress
     !
     !     Subroutine to compute element contribution to project element integration point data to nodes
 
@@ -364,6 +365,7 @@ subroutine fieldvars_linelast_2dbasic(lmn, element_identifier, n_nodes, node_pro
         sdev = stress
         sdev(1:2) = sdev(1:2)-p
         smises = dsqrt( dot_product(sdev(1:2),sdev(1:2)) + 2.d0*sdev(3)*sdev(3))*dsqrt(1.5d0)
+        S33 = (E/((1-2*xnu)*(1+xnu))*xnu*(strain(1)+strain(2))
         ! In the code below the strcmp( string1, string2, nchar) function returns true if the first nchar characters in strings match
         do k = 1,n_field_variables
             if (strcmp(field_variable_names(k),'S11',3) ) then
@@ -372,6 +374,8 @@ subroutine fieldvars_linelast_2dbasic(lmn, element_identifier, n_nodes, node_pro
                 nodal_fieldvariables(k,1:n_nodes) = nodal_fieldvariables(k,1:n_nodes) + stress(2)*N(1:n_nodes)*determinant*w(kint)
             else if (strcmp(field_variable_names(k),'S12',3) ) then
                 nodal_fieldvariables(k,1:n_nodes) = nodal_fieldvariables(k,1:n_nodes) + stress(3)*N(1:n_nodes)*determinant*w(kint)
+            else if (strcmp(field_variable_names(k),'S33',3) ) then
+                nodal_fieldvariables(k,1:n_nodes) = nodal_fieldvariables(k,1:n_nodes) + S33*N(1:n_nodes)*determinant*w(kint)
             else if (strcmp(field_variable_names(k),'SMISES',6) ) then
                 nodal_fieldvariables(k,1:n_nodes) = nodal_fieldvariables(k,1:n_nodes) + smises*N(1:n_nodes)*determinant*w(kint)
             endif
