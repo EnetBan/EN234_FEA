@@ -151,7 +151,7 @@
 %                        UNSYMMETRIC  (optional - only for unsymmetric stiffness)
 
 
-         SOLVER, DIRECT, LINEAR
+         SOLVER, DIRECT, NONLINEAR, 1.d-05,15
 
 
 %      This prints the DOF values and projected nodal state for all solid elements to a tecplot readable file
