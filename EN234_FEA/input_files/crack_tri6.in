@@ -2631,7 +2631,7 @@
 %     The parameters are no. nodes on the element, total no. state variables, integer identifier
 
       ELEMENTS
-        PARAMETERS, 6, 0, 101
+        PARAMETERS, 6, 0, 1002
 %       Define element properties - the values are passed to user subroutine elstif in the order they are listed here
 %       For the example provided, the params are Youngs Modulus, Poissons ratio
         PROPERTIES
@@ -3890,7 +3890,7 @@
 1246,  659,  616,  641, 2594, 2572, 2577
         END CONNECTIVITY
 
-        PARAMETERS, 8, 0, 101
+        PARAMETERS, 8, 0, 1003
 %       Define element properties - the values are passed to user subroutine elstif in the order they are listed here
 %       For the example provided, the params are Youngs Modulus, Poissons ratio
         PROPERTIES
