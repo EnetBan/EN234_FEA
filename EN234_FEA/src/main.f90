@@ -64,13 +64,23 @@ program en234fea
 
 !
 !  Homework 4, crack tip elements and the J integral
-  infil = './input_files/crack_tri6.in'
-  open (unit = IOR, file = infil, status = 'old', ERR=500)
-  outfil = './Output_files/crack_tri6.out'
-  open (UNIT = IOW, FILE = outfil, STATUS = 'unknown', ERR=500)
+!  infil = './input_files/crack_tri6.in'
+!  open (unit = IOR, file = infil, status = 'old', ERR=500)
+!  outfil = './Output_files/crack_tri6.out'
+!  open (UNIT = IOW, FILE = outfil, STATUS = 'unknown', ERR=500)
 
 !  Homework 5, small-strain B bar element - test with same files as in HW3, but
 !  try approaching incompressible limit by making Poisson's ratio close to 0.5
+
+  infil = './input_files/Holeplate_2d_tri6_volLock.in'
+  open (unit = IOR, file = infil, status = 'old', ERR=500)
+  outfil = './Output_files/holeplate_2d_tri6_volLock.out'
+  open (UNIT = IOW, FILE = outfil, STATUS = 'unknown', ERR=500)
+
+!  infil = './input_files/Holeplate_2d_quad8_volLock.in'
+!  open (unit = IOR, file = infil, status = 'old', ERR=500)
+!  outfil = './Output_files/holeplate_2d_quad8_volLock.out'
+!  open (UNIT = IOW, FILE = outfil, STATUS = 'unknown', ERR=500)
 
 !
 ! Homework 6: small-strain Armstrong-Frederick kinematic hardening model

@@ -3,7 +3,7 @@
 %                                    A.F. Bower, August 2015
 %
 %             Input file for a simple 2D hole-in-a-plate with 8 noded quadrilateral elements
-%
+%			  poisson's ratio = .499 to show volumetric locking
 %
 % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% MESH DEFINITION %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %
@@ -836,11 +836,11 @@
 %     The parameters are no. nodes on the element, no. properties, total no. state variables, integer identifier
 
       ELEMENTS
-        PARAMETERS, 8, 0, 102
+        PARAMETERS, 8, 0, 103
 %       Define element properties - the values are passed to user subroutine elstif in the order they are listed here
 %       For the example provided, the params are Youngs Modulus, Poissons ratio
         PROPERTIES
-         100.d0, 0.3d0
+         100.d0, 0.499d0
         END PROPERTIES
 %     Define mass density (for explicity dynamics only)
 %       DENSITY, 10.d0
@@ -1112,7 +1112,7 @@
 %       The HISTORY key defines a time history that can be applied to DOFs or distributed loads
         HISTORY, dof_history
           0.d0, 0.d0                  % Each line gives a time value and then a function value
-         10.d0, 0.001d0
+         3.d0, 0.001d0
         END HISTORY
 
  
@@ -1160,7 +1160,7 @@
 
 %   The CHECK STIFFNESS key tests the element subroutine to ensure that
 %   the residual force vector is consistent with the stiffness
-%       CHECK STIFFNESS, 102
+%       CHECK STIFFNESS, 103
 
 
 
