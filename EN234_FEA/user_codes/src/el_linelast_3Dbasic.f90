@@ -63,6 +63,7 @@ subroutine el_linelast_3dbasic(lmn, element_identifier, n_nodes, node_property_l
     real (prec)  ::  D(6,6)                            ! stress = D*(strain+dstrain)  (NOTE FACTOR OF 2 in shear strain)
     real (prec)  ::  B(6,length_dof_array)             ! strain = B*(dof_total+dof_increment)
     real (prec)  ::  B_aug(6,length_dof_array)         ! array to augment B in the case of B-bar elements
+    real (prec)  ::  vol                               ! volume of element
     real (prec)  ::  dxidx(3,3), determinant           ! Jacobian inverse and determinant
     real (prec)  ::  x(3,length_coord_array/3)         ! Re-shaped coordinate array x(i,a) is ith coord of ath node
     real (prec)  :: E, xnu, D44, D11, D12              ! Material properties
@@ -100,11 +101,11 @@ subroutine el_linelast_3dbasic(lmn, element_identifier, n_nodes, node_property_l
     D(4,4) = d44
     D(5,5) = d44
     D(6,6) = d44
-  
 
     ! need to define volume averages in the case of b-bar -- cannot do inline with B calculation :(
     if (element_identifier == 1002) then
         dNbardx = 0.d0
+        vol = 0.d0
         do kint = 1, n_points
             call calculate_shapefunctions(xi(1:3,kint),n_nodes,N,dNdxi)
             dxdxi = matmul(x(1:3,1:n_nodes),dNdxi(1:n_nodes,1:3))
@@ -112,10 +113,11 @@ subroutine el_linelast_3dbasic(lmn, element_identifier, n_nodes, node_property_l
             dNdx(1:n_nodes,1:3) = matmul(dNdxi(1:n_nodes,1:3),dxidx)
 
             dNbardx = dNbardx + dNdx*w(kint)*determinant
+            vol = vol + w(kint)*determinant
         end do
 
-        dNbardx = (1/(determinant*SUM(w)))*dNbardx
-    endif
+        dNbardx = (1/vol)*dNbardx
+    end if
 
     !     --  Loop over integration points
     do kint = 1, n_points
@@ -146,8 +148,8 @@ subroutine el_linelast_3dbasic(lmn, element_identifier, n_nodes, node_property_l
             B_aug(3,1:3*n_nodes-2:3) = dNbardx(1:n_nodes,1)-dNdx(1:n_nodes,1)
             B_aug(3,2:3*n_nodes-1:3) = dNbardx(1:n_nodes,2)-dNdx(1:n_nodes,2)
             B_aug(3,3:3*n_nodes:3) = dNbardx(1:n_nodes,3)-dNdx(1:n_nodes,3)
-            B = B + (1/3)*B_aug
-        endif
+            B = B + (1.d0/3.d0)*B_aug
+        end if
 
         strain = matmul(B,dof_total)
         dstrain = matmul(B,dof_increment)
@@ -349,6 +351,7 @@ subroutine fieldvars_linelast_3dbasic(lmn, element_identifier, n_nodes, node_pro
     real (prec)  ::  D(6,6)                            ! stress = D*(strain+dstrain)  (NOTE FACTOR OF 2 in shear strain)
     real (prec)  ::  B(6,length_dof_array)             ! strain = B*(dof_total+dof_increment)
     real (prec)  ::  B_aug(6,length_dof_array)         ! array to augment B in the case of B-bar elements
+    real (prec)  ::  vol                               ! volume of element
     real (prec)  ::  dxidx(3,3), determinant           ! Jacobian inverse and determinant
     real (prec)  ::  x(3,length_coord_array/3)         ! Re-shaped coordinate array x(i,a) is ith coord of ath node
     real (prec)  :: E, xnu, D44, D11, D12              ! Material properties
@@ -387,6 +390,7 @@ subroutine fieldvars_linelast_3dbasic(lmn, element_identifier, n_nodes, node_pro
     ! need to define volume averages in the case of b-bar -- cannot do inline with B calculation :(
     if (element_identifier == 1002) then
         dNbardx = 0.d0
+        vol = 0.d0
         do kint = 1, n_points
             call calculate_shapefunctions(xi(1:3,kint),n_nodes,N,dNdxi)
             dxdxi = matmul(x(1:3,1:n_nodes),dNdxi(1:n_nodes,1:3))
@@ -394,9 +398,10 @@ subroutine fieldvars_linelast_3dbasic(lmn, element_identifier, n_nodes, node_pro
             dNdx(1:n_nodes,1:3) = matmul(dNdxi(1:n_nodes,1:3),dxidx)
 
             dNbardx = dNbardx + dNdx*w(kint)*determinant
+            vol = vol + w(kint)*determinant
         end do
 
-        dNbardx = (1/(determinant*SUM(w)))*dNbardx
+        dNbardx = (1/vol)*dNbardx
     endif
   
     !     --  Loop over integration points

@@ -4135,7 +4135,7 @@ END NODES
 %       Define element properties - the values are passed to user subroutine elstif in the order they are listed here
 %       For the example provided, the params are Youngs Modulus, Poissons ratio 
         PROPERTIES
-         100.d0, 0.499999999d0
+         100.d0, 0.4999d0
         END PROPERTIES
 %     Define mass density (for explicity dynamics only)
 %       DENSITY, 10.d0
@@ -7230,7 +7230,7 @@ END MESH
 %       The HISTORY key defines a time history that can be applied to DOFs or distributed loads
         HISTORY, dof_history
           0.d0, 0.d0
-         10.d0, 0.01d0
+         10.d0, 0.3d0
         END HISTORY
 
         HISTORY, dload_history
@@ -7292,11 +7292,6 @@ END MESH
  3424, 3431, 3464, 3465, 3466, 3467, 3468, 3469, 3470, 3471, 3559, 3560, 3561, 3562, 3563, 3564
  3565, 3566
      END NODESET
-     
-     ELEMENTSET, end_elements
-43, 87, 352, 412, 56, 69, 82, 83, 84, 85, 86, 
-     
-     END ELEMENTSET
 
 
 
@@ -7323,7 +7318,7 @@ END MESH
 %           element set, face #, SUBROUTINE, subroutine parameter name
 
 %       DISTRIBUTED LOADS
-%          end_elements, 4, Value, 0.d0,1.d0,0.d0
+%         end_elements, 4, Value, 0.d0,0.d0,1.d0
 %       END DISTRIBUTED LOADS
 
 %       The CONSTRAINTS key gives a way to enforce constraints between pairs or groups of nodes.
@@ -7395,11 +7390,11 @@ END MESH
 
 
 
-         PRINT STATE, Output_files\contourplots.dat
+         PRINT STATE, Output_files\contourplots2.dat
             DEGREES OF FREEDOM
             FIELD VARIABLES, S11,S22,S33,S12,S13,S23
             DISPLACED MESH
-            DISPLACEMENT SCALE FACTOR, 100.d0
+            DISPLACEMENT SCALE FACTOR, 7.d0
          END PRINT STATE
 
 %       The lines below are just examples - they will do nothing for this simulation (no code exists to interpret them)

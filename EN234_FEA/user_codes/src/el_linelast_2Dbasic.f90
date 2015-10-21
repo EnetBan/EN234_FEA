@@ -410,7 +410,7 @@ subroutine fieldvars_linelast_2dbasic(lmn, element_identifier, n_nodes, node_pro
             B_aug(2,1:2*n_nodes-1:2) = dNbardx(1:n_nodes,1)-dNdx(1:n_nodes,1)
             B_aug(2,2:2*n_nodes:2) = dNbardx(1:n_nodes,2)-dNdx(1:n_nodes,2)
             B = B + (1/2)*B_aug
-        endif
+        end if
 
         strain = matmul(B,dof_total)
         dstrain = matmul(B,dof_increment)
