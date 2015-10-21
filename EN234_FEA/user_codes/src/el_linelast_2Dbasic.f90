@@ -133,10 +133,10 @@ subroutine el_linelast_2dbasic(lmn, element_identifier, n_nodes, node_property_l
         if (element_identifier == 103) then
             !B-Bar element
             B_aug = 0.d0
-            B_aug(1,1:n_nodes) = dNbardx(1,1:n_nodes)-dNdx(1,1:n_nodes)
-            B_aug(1,n_nodes+1:2*n_nodes) = dNbardx(2,1:n_nodes)-dNdx(2,1:n_nodes)
-            B_aug(2,1:n_nodes) = dNbardx(1,1:n_nodes)-dNdx(1,1:n_nodes)
-            B_aug(2,n_nodes+1:2*n_nodes) = dNbardx(2,1:n_nodes)-dNdx(2,1:n_nodes)
+            B_aug(1,1:2*n_nodes-1:2) = dNbardx(1:n_nodes,1)-dNdx(1:n_nodes,1)
+            B_aug(1,2:2*n_nodes:2) = dNbardx(1:n_nodes,2)-dNdx(1:n_nodes,2)
+            B_aug(2,1:2*n_nodes-1:2) = dNbardx(1:n_nodes,1)-dNdx(1:n_nodes,1)
+            B_aug(2,2:2*n_nodes:2) = dNbardx(1:n_nodes,2)-dNdx(1:n_nodes,2)
             B = B + (1/2)*B_aug
         endif
 
@@ -405,10 +405,10 @@ subroutine fieldvars_linelast_2dbasic(lmn, element_identifier, n_nodes, node_pro
         if (element_identifier == 103) then
             !B-Bar element
             B_aug = 0.d0
-            B_aug(1,1:n_nodes) = dNbardx(1,1:n_nodes)-dNdx(1,1:n_nodes)
-            B_aug(1,n_nodes+1:2*n_nodes) = dNbardx(2,1:n_nodes)-dNdx(2,1:n_nodes)
-            B_aug(2,1:n_nodes) = dNbardx(1,1:n_nodes)-dNdx(1,1:n_nodes)
-            B_aug(2,n_nodes+1:2*n_nodes) = dNbardx(2,1:n_nodes)-dNdx(2,1:n_nodes)
+            B_aug(1,1:2*n_nodes-1:2) = dNbardx(1:n_nodes,1)-dNdx(1:n_nodes,1)
+            B_aug(1,2:2*n_nodes:2) = dNbardx(1:n_nodes,2)-dNdx(1:n_nodes,2)
+            B_aug(2,1:2*n_nodes-1:2) = dNbardx(1:n_nodes,1)-dNdx(1:n_nodes,1)
+            B_aug(2,2:2*n_nodes:2) = dNbardx(1:n_nodes,2)-dNdx(1:n_nodes,2)
             B = B + (1/2)*B_aug
         endif
 
