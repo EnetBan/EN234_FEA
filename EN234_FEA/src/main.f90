@@ -82,10 +82,10 @@ program en234fea
 !  outfil = './Output_files/holeplate_2d_quad8_volLock.out'
 !  open (UNIT = IOW, FILE = outfil, STATUS = 'unknown', ERR=500)
 
-  infil = './input_files/Holeplate_3d_volLock.in'
-  open (unit = IOR, file = infil, status = 'old', ERR=500)
-  outfil = './Output_files/Holeplate_3d_volLock.out'
-  open (UNIT = IOW, FILE = outfil, STATUS = 'unknown', ERR=500)
+!  infil = './input_files/Holeplate_3d_volLock.in'
+!  open (unit = IOR, file = infil, status = 'old', ERR=500)
+!  outfil = './Output_files/Holeplate_3d_volLock.out'
+!  open (UNIT = IOW, FILE = outfil, STATUS = 'unknown', ERR=500)
 
 !  infil = './input_files/Linear_elastic_3d_volLock.in'
 !  open (unit = IOR, file = infil, status = 'old', ERR=500)
@@ -98,6 +98,11 @@ program en234fea
 !  open (unit = IOR, file = infil, status = 'old', ERR=500)
 !  outfil = './Output_files/cyclic_plastic_3d.out'
 !  open (UNIT = IOW, FILE = outfil, STATUS = 'unknown', ERR=500)
+
+  infil = './input_files/Hypoelastic_3d.in'
+  open (unit = IOR, file = infil, status = 'old', ERR=500)
+  outfil = './Output_files/Hypoelastic_3d.out'
+  open (UNIT = IOW, FILE = outfil, STATUS = 'unknown', ERR=500)
 
 ! Homework 7, stretch a hyperelastic bar, check stiffness.
 !  infil = './input_files/Hyperelastic_bar_stretch.in'

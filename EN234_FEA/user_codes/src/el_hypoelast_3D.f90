@@ -66,7 +66,7 @@ subroutine el_hypoelast_3d(lmn, element_identifier, n_nodes, node_property_list,
     real (prec)  ::  vol                               ! volume of element
     real (prec)  ::  dxidx(3,3), determinant           ! Jacobian inverse and determinant
     real (prec)  ::  x(3,length_coord_array/3)         ! Re-shaped coordinate array x(i,a) is ith coord of ath node
-    real (prec)  ::  s0, e0, n, K                      ! Material properties
+    real (prec)  ::  s0, e0, nmat, Kmat                      ! Material properties
     !
     !     Subroutine to compute element stiffness matrix and residual force vector for 3D linear elastic elements
     !     El props are:
@@ -91,22 +91,20 @@ subroutine el_hypoelast_3d(lmn, element_identifier, n_nodes, node_property_list,
     D = 0.d0
 
 
-    ! need to define volume averages in the case of b-bar -- cannot do inline with B calculation :(
-    if (element_identifier == 1002) then
-        dNbardx = 0.d0
-        vol = 0.d0
-        do kint = 1, n_points
-            call calculate_shapefunctions(xi(1:3,kint),n_nodes,N,dNdxi)
-            dxdxi = matmul(x(1:3,1:n_nodes),dNdxi(1:n_nodes,1:3))
-            call invert_small(dxdxi,dxidx,determinant)
-            dNdx(1:n_nodes,1:3) = matmul(dNdxi(1:n_nodes,1:3),dxidx)
+    ! need to define volume averages for b-bar -- cannot do inline with B calculation :(
+    dNbardx = 0.d0
+    vol = 0.d0
+    do kint = 1, n_points
+        call calculate_shapefunctions(xi(1:3,kint),n_nodes,N,dNdxi)
+        dxdxi = matmul(x(1:3,1:n_nodes),dNdxi(1:n_nodes,1:3))
+        call invert_small(dxdxi,dxidx,determinant)
+        dNdx(1:n_nodes,1:3) = matmul(dNdxi(1:n_nodes,1:3),dxidx)
 
-            dNbardx = dNbardx + dNdx*w(kint)*determinant
-            vol = vol + w(kint)*determinant
-        end do
+        dNbardx = dNbardx + dNdx*w(kint)*determinant
+        vol = vol + w(kint)*determinant
+    end do
 
-        dNbardx = (1/vol)*dNbardx
-    end if
+    dNbardx = (1/vol)*dNbardx
 
     !     --  Loop over integration points
     do kint = 1, n_points
@@ -137,16 +135,26 @@ subroutine el_hypoelast_3d(lmn, element_identifier, n_nodes, node_property_list,
         B_aug(3,2:3*n_nodes-1:3) = dNbardx(1:n_nodes,2)-dNdx(1:n_nodes,2)
         B_aug(3,3:3*n_nodes:3) = dNbardx(1:n_nodes,3)-dNdx(1:n_nodes,3)
         B = B + (1.d0/3.d0)*B_aug
+        write(*,*) 'B'
+        write(*,*) B(1,:)
+        write(*,*) B(2,:)
+        write(*,*) B(3,:)
+        write(*,*) B(4,:)
+        write(*,*) B(5,:)
+        write(*,*) B(6,:)
+
+        write(*,*) 'dof_total', dof_total
 
         strain = matmul(B,dof_total)
         dstrain = matmul(B,dof_increment)
-      
+     write(*,*) 'strain', strain
+     write(*,*) 'dstrain', dstrain
         s0 = element_properties(1)
         e0 = element_properties(2)
-        n = element_properties(3)
-        K = element_properties(4)
+        nmat = element_properties(3)
+        Kmat = element_properties(4)
 
-        calculate_hypoelast_d(strain+dstrain, s0, e0, n, K, D, stress)
+        call calculate_hypoelast_d(strain+dstrain, s0, e0, nmat, Kmat, D, stress)
 
         element_residual(1:3*n_nodes) = element_residual(1:3*n_nodes) - matmul(transpose(B),stress)*w(kint)*determinant
 
@@ -347,7 +355,7 @@ subroutine fieldvars_hypoelast_3d(lmn, element_identifier, n_nodes, node_propert
     real (prec)  ::  vol                               ! volume of element
     real (prec)  ::  dxidx(3,3), determinant           ! Jacobian inverse and determinant
     real (prec)  ::  x(3,length_coord_array/3)         ! Re-shaped coordinate array x(i,a) is ith coord of ath node
-    real (prec)  :: E, xnu, D44, D11, D12              ! Material properties
+    real (prec)  :: s0, e0, Kmat, nmat                       ! Material properties
     real (prec)  :: p, smises                          ! Pressure and Mises stress
     !
     !     Subroutine to compute element contribution to project element integration point data to nodes
@@ -367,36 +375,22 @@ subroutine fieldvars_hypoelast_3d(lmn, element_identifier, n_nodes, node_propert
     nodal_fieldvariables = 0.d0
 	
     D = 0.d0
-    E = element_properties(1)
-    xnu = element_properties(2)
-    d44 = 0.5D0*E/(1+xnu) 
-    d11 = (1.D0-xnu)*E/( (1+xnu)*(1-2.D0*xnu) )
-    d12 = xnu*E/( (1+xnu)*(1-2.D0*xnu) )
-    D(1:3,1:3) = d12
-    D(1,1) = d11
-    D(2,2) = d11
-    D(3,3) = d11
-    D(4,4) = d44
-    D(5,5) = d44
-    D(6,6) = d44
 
-    ! need to define volume averages in the case of b-bar -- cannot do inline with B calculation :(
-    if (element_identifier == 1002) then
-        dNbardx = 0.d0
-        vol = 0.d0
-        do kint = 1, n_points
-            call calculate_shapefunctions(xi(1:3,kint),n_nodes,N,dNdxi)
-            dxdxi = matmul(x(1:3,1:n_nodes),dNdxi(1:n_nodes,1:3))
-            call invert_small(dxdxi,dxidx,determinant)
-            dNdx(1:n_nodes,1:3) = matmul(dNdxi(1:n_nodes,1:3),dxidx)
+    ! need to define volume averages for b-bar -- cannot do inline with B calculation :(
+    dNbardx = 0.d0
+    vol = 0.d0
+    do kint = 1, n_points
+        call calculate_shapefunctions(xi(1:3,kint),n_nodes,N,dNdxi)
+        dxdxi = matmul(x(1:3,1:n_nodes),dNdxi(1:n_nodes,1:3))
+        call invert_small(dxdxi,dxidx,determinant)
+        dNdx(1:n_nodes,1:3) = matmul(dNdxi(1:n_nodes,1:3),dxidx)
 
-            dNbardx = dNbardx + dNdx*w(kint)*determinant
-            vol = vol + w(kint)*determinant
-        end do
+        dNbardx = dNbardx + dNdx*w(kint)*determinant
+        vol = vol + w(kint)*determinant
+    end do
 
-        dNbardx = (1/vol)*dNbardx
-    endif
-  
+    dNbardx = (1/vol)*dNbardx
+
     !     --  Loop over integration points
     do kint = 1, n_points
         call calculate_shapefunctions(xi(1:3,kint),n_nodes,N,dNdxi)
@@ -414,25 +408,32 @@ subroutine fieldvars_hypoelast_3d(lmn, element_identifier, n_nodes, node_propert
         B(6,2:3*n_nodes-1:3) = dNdx(1:n_nodes,3)
         B(6,3:3*n_nodes:3)   = dNdx(1:n_nodes,2)
 
-        if (element_identifier == 1002) then
-            !B-Bar element
-            B_aug = 0.d0
-            B_aug(1,1:3*n_nodes-2:3) = dNbardx(1:n_nodes,1)-dNdx(1:n_nodes,1)
-            B_aug(1,2:3*n_nodes-1:3) = dNbardx(1:n_nodes,2)-dNdx(1:n_nodes,2)
-            B_aug(1,3:3*n_nodes:3) = dNbardx(1:n_nodes,3)-dNdx(1:n_nodes,3)
-            B_aug(2,1:3*n_nodes-2:3) = dNbardx(1:n_nodes,1)-dNdx(1:n_nodes,1)
-            B_aug(2,2:3*n_nodes-1:3) = dNbardx(1:n_nodes,2)-dNdx(1:n_nodes,2)
-            B_aug(2,3:3*n_nodes:3) = dNbardx(1:n_nodes,3)-dNdx(1:n_nodes,3)
-            B_aug(3,1:3*n_nodes-2:3) = dNbardx(1:n_nodes,1)-dNdx(1:n_nodes,1)
-            B_aug(3,2:3*n_nodes-1:3) = dNbardx(1:n_nodes,2)-dNdx(1:n_nodes,2)
-            B_aug(3,3:3*n_nodes:3) = dNbardx(1:n_nodes,3)-dNdx(1:n_nodes,3)
-            B = B + (1/3)*B_aug
-        endif
-
+        !B-Bar element
+        B_aug = 0.d0
+        B_aug(1,1:3*n_nodes-2:3) = dNbardx(1:n_nodes,1)-dNdx(1:n_nodes,1)
+        B_aug(1,2:3*n_nodes-1:3) = dNbardx(1:n_nodes,2)-dNdx(1:n_nodes,2)
+        B_aug(1,3:3*n_nodes:3) = dNbardx(1:n_nodes,3)-dNdx(1:n_nodes,3)
+        B_aug(2,1:3*n_nodes-2:3) = dNbardx(1:n_nodes,1)-dNdx(1:n_nodes,1)
+        B_aug(2,2:3*n_nodes-1:3) = dNbardx(1:n_nodes,2)-dNdx(1:n_nodes,2)
+        B_aug(2,3:3*n_nodes:3) = dNbardx(1:n_nodes,3)-dNdx(1:n_nodes,3)
+        B_aug(3,1:3*n_nodes-2:3) = dNbardx(1:n_nodes,1)-dNdx(1:n_nodes,1)
+        B_aug(3,2:3*n_nodes-1:3) = dNbardx(1:n_nodes,2)-dNdx(1:n_nodes,2)
+        B_aug(3,3:3*n_nodes:3) = dNbardx(1:n_nodes,3)-dNdx(1:n_nodes,3)
+        B = B + (1.d0/3.d0)*B_aug
 
         strain = matmul(B,dof_total)
         dstrain = matmul(B,dof_increment)
-        stress = matmul(D,strain+dstrain)
+
+        s0 = element_properties(1)
+        e0 = element_properties(2)
+        nmat = element_properties(3)
+        Kmat = element_properties(4)
+
+        strain = matmul(B,dof_total)
+        dstrain = matmul(B,dof_increment)
+
+        call calculate_hypoelast_d(strain+dstrain, s0, e0, nmat, Kmat, D, stress)
+
         p = sum(stress(1:3))/3.d0
         sdev = stress
         sdev(1:3) = sdev(1:3)-p
@@ -463,6 +464,8 @@ end subroutine fieldvars_hypoelast_3d
 
 ! =========================== Subroutine to calculate D ===========================
 subroutine calculate_hypoelast_d(tot_strain, s0, e0, n, K, D, stress)
+    use Types
+
     real( prec ), intent( in )    :: tot_strain(6)   ! Coordinates, stored as x1,(x2),(x3) for each node in turn
     real( prec ), intent( in )    :: s0              ! Material property
     real( prec ), intent( in )    :: e0              ! Material property
@@ -478,16 +481,20 @@ subroutine calculate_hypoelast_d(tot_strain, s0, e0, n, K, D, stress)
 
     real (prec)  ::  sdev(6)                           ! Deviatoric strain [e11 e22 e33 e12 e13 e23] NOTE LACK OF FACTOR OF 2
     real (prec)  ::  svol                              ! volumetric srain
-    real (prec)  ::  e_dyadic_e
+    real (prec)  ::  e_dyadic_e(6,6)
     real (prec)  ::  Et, Es
     real (prec)  ::  sigma_e, epsilon_e
-    real (prec)  ::  M1,M2                             ! fixed matrices for calculating D
+    real (prec)  ::  M1(6,6),M2(6,6)                             ! fixed matrices for calculating D
 
     !! calculating stresses
     stress = 0.d0
 
+    write(*,*) 'Hypoelast_d entered'
+
     ! calculating epsilon_e
     svol = sum(tot_strain(1:3))
+    write(*,*) 'strain:', tot_strain
+    write(*,*) 'Svol:', svol
     sdev = tot_strain
     sdev(1:3) = tot_strain(1:3)-svol/3
     sdev(4:6) = (1.d0/2.d0)*sdev(4:6) ! getting rid of factor of 2 on shear strains
@@ -495,15 +502,15 @@ subroutine calculate_hypoelast_d(tot_strain, s0, e0, n, K, D, stress)
 
     ! calculating sigma_e & Et
     if (epsilon_e <= e0)  then
-        sigma_e = s0*(sqrt((1+n^2)/(n-1)^2-(n/(n-1)-epsilon_e/e0)^2)-1/(n-1))
-        Et = (epsilon_e+e0*n-epsilon_e*n)*s0/(e0^2*(n-1)*sqrt((1+epsilon_e*(n-1)*(epsilon_e+2*e0*n-epsilon_e*n)/e0^2)/(n-1)^2))
-    else  then
-        sigma_e = (epsilon_e/e0)^(1/n)
-        Et = ((epsilon_e/e0)^(1/n))/(epsilon_e*n)
+        sigma_e = s0*(sqrt((1+n**2)/(n-1)**2-(n/(n-1)-epsilon_e/e0)**2)-1/(n-1))
+        Et = (epsilon_e+e0*n-epsilon_e*n)*s0/(e0**2*(n-1)*sqrt((1+epsilon_e*(n-1)*(epsilon_e+2*e0*n-epsilon_e*n)/e0**2)/(n-1)**2))
+    else
+        sigma_e = (epsilon_e/e0)**(1/n)
+        Et = ((epsilon_e/e0)**(1/n))/(epsilon_e*n)
     endif
 
     Es = Et
-    if (epsilon_e ~= 0) then
+    if (epsilon_e /= 0) then
         stress(1:3) = (2.d0/3.d0)*sigma_e*sdev(1:3)/epsilon_e+K*svol
         stress(4:6) = (2.d0/3.d0)*sigma_e*sdev(4:6)/epsilon_e
         Es = sigma_e/epsilon_e
@@ -521,8 +528,16 @@ subroutine calculate_hypoelast_d(tot_strain, s0, e0, n, K, D, stress)
     M2 = 0.d0
     M2(1:3,1:3) = 1.d0
 
-    e_dyadic_e = spread(e,dim=2,ncopies=6)*spread(2,dim=1,ncopies=6)
-    D = (4/(9*epsilon_e^2))*(Et-Es)*e_dyadic_e+(Es/3.d0)*M1+(K-2.d0*Es/9.d0)*M2
+    e_dyadic_e = spread(sdev,dim=2,ncopies=6)*spread(sdev,dim=1,ncopies=6)
+    D = (4/(9*epsilon_e**2))*(Et-Es)*e_dyadic_e+(Es/3.d0)*M1+(K-2.d0*Es/9.d0)*M2
+    write(*,*) 'Stress:', stress
+    write(*,*) 'D'
+    write(*,*) D(1,:)
+    write(*,*) D(2,:)
+    write(*,*) D(3,:)
+    write(*,*) D(4,:)
+    write(*,*) D(5,:)
+    write(*,*) D(6,:)
     return
 end subroutine calculate_hypoelast_d
 
