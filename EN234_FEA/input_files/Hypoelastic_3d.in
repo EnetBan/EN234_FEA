@@ -40,7 +40,7 @@
       ELEMENTS
         PARAMETERS, 8, 0, 1003
 %       Define element properties - the values are passed to user subroutine elstif in the order they are listed here
-%       For the example provided, the params are Youngs Modulus, Poissons ratio
+%       For the example provided, the params are s0, e0, n, K
         PROPERTIES
          1.d0, .01d0, 10.d0, 1000.d0
         END PROPERTIES
@@ -158,7 +158,7 @@
 
           INITIAL TIME STEP, 1.d0        % Test of a comment here
           MAX TIME STEP, 1.d0
-          MIN TIME STEP, 0.001d0
+          MIN TIME STEP, 0.0001d0
           MAX NUMBER OF STEPS, 20
           STOP TIME, 10.d0
           STATE PRINT STEP INTERVAL, 1

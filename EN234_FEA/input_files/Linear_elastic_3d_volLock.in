@@ -173,7 +173,7 @@
 %                        For nonlinear solver, must specify convergence tolerance and max # iterations
 %                        UNSYMMETRIC  (optional - only for unsymmetric stiffness)
 
-         SOLVER, CONJUGATE GRADIENT, NONLINEAR, 1.d-05,15
+         SOLVER, DIRECT, NONLINEAR, 1.d-05,15
 
 
 %      This prints the DOF values and projected nodal state for all solid elements to a tecplot readable file

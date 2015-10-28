@@ -135,20 +135,9 @@ subroutine el_hypoelast_3d(lmn, element_identifier, n_nodes, node_property_list,
         B_aug(3,2:3*n_nodes-1:3) = dNbardx(1:n_nodes,2)-dNdx(1:n_nodes,2)
         B_aug(3,3:3*n_nodes:3) = dNbardx(1:n_nodes,3)-dNdx(1:n_nodes,3)
         B = B + (1.d0/3.d0)*B_aug
-        write(*,*) 'B'
-        write(*,*) B(1,:)
-        write(*,*) B(2,:)
-        write(*,*) B(3,:)
-        write(*,*) B(4,:)
-        write(*,*) B(5,:)
-        write(*,*) B(6,:)
-
-        write(*,*) 'dof_total', dof_total
 
         strain = matmul(B,dof_total)
         dstrain = matmul(B,dof_increment)
-     write(*,*) 'strain', strain
-     write(*,*) 'dstrain', dstrain
         s0 = element_properties(1)
         e0 = element_properties(2)
         nmat = element_properties(3)
@@ -465,6 +454,7 @@ end subroutine fieldvars_hypoelast_3d
 ! =========================== Subroutine to calculate D ===========================
 subroutine calculate_hypoelast_d(tot_strain, s0, e0, n, K, D, stress)
     use Types
+    use ParamIO
 
     real( prec ), intent( in )    :: tot_strain(6)   ! Coordinates, stored as x1,(x2),(x3) for each node in turn
     real( prec ), intent( in )    :: s0              ! Material property
@@ -489,12 +479,9 @@ subroutine calculate_hypoelast_d(tot_strain, s0, e0, n, K, D, stress)
     !! calculating stresses
     stress = 0.d0
 
-    write(*,*) 'Hypoelast_d entered'
 
     ! calculating epsilon_e
     svol = sum(tot_strain(1:3))
-    write(*,*) 'strain:', tot_strain
-    write(*,*) 'Svol:', svol
     sdev = tot_strain
     sdev(1:3) = tot_strain(1:3)-svol/3
     sdev(4:6) = (1.d0/2.d0)*sdev(4:6) ! getting rid of factor of 2 on shear strains
@@ -529,15 +516,12 @@ subroutine calculate_hypoelast_d(tot_strain, s0, e0, n, K, D, stress)
     M2(1:3,1:3) = 1.d0
 
     e_dyadic_e = spread(sdev,dim=2,ncopies=6)*spread(sdev,dim=1,ncopies=6)
-    D = (4/(9*epsilon_e**2))*(Et-Es)*e_dyadic_e+(Es/3.d0)*M1+(K-2.d0*Es/9.d0)*M2
-    write(*,*) 'Stress:', stress
-    write(*,*) 'D'
-    write(*,*) D(1,:)
-    write(*,*) D(2,:)
-    write(*,*) D(3,:)
-    write(*,*) D(4,:)
-    write(*,*) D(5,:)
-    write(*,*) D(6,:)
+
+    if (epsilon_e /= 0) then
+        D = D + (4/(9*epsilon_e**2))*(Et-Es)*e_dyadic_e
+    endif
+
+    D = D+(Es/3.d0)*M1+(K-2.d0*Es/9.d0)*M2
     return
 end subroutine calculate_hypoelast_d
 

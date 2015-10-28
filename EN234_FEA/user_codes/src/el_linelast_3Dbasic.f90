@@ -150,7 +150,6 @@ subroutine el_linelast_3dbasic(lmn, element_identifier, n_nodes, node_property_l
             B_aug(3,3:3*n_nodes:3) = dNbardx(1:n_nodes,3)-dNdx(1:n_nodes,3)
             B = B + (1.d0/3.d0)*B_aug
         end if
-
         strain = matmul(B,dof_total)
         dstrain = matmul(B,dof_increment)
       
