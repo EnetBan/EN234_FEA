@@ -15,9 +15,10 @@ subroutine user_print(n_steps)
   integer ::  lmn
   integer ::  status
   integer ::  n_state_vars_per_intpt                                         ! No. state variables per integration point
-!  real (prec) ::   vol_averaged_strain(6)                                    ! Volume averaged strain in an element
+  real (prec) ::   vol_averaged_strain(6)                                    ! Volume averaged strain in an element
 !  real (prec), allocatable ::   vol_averaged_state_variables(:)              ! Volume averaged state variables in an element
-  real (prec) :: J_value                                                     !J integral value
+!  real (prec) :: J_value                                                     !J integral value
+  real (prec) :: vol_averaged_stress(6)                                                   ! volume averaged stress (for hypoelastic)
 
 
 !
@@ -60,9 +61,20 @@ subroutine user_print(n_steps)
 !   endif
 
 !!! J integral calculation
-    call compute_J_integral(J_value)
-    write(user_print_units(1),'(A)') 'J-Integral Value:'
-    write(user_print_units(1),*) J_value
+!    call compute_J_integral(J_value)
+ !   write(user_print_units(1),'(A)') 'J-Integral Value:'
+ !   write(user_print_units(1),*) J_value
+
+ !! Hypoelastic vol averaged stress/strain
+    lmn = 1
+    vol_averaged_strain = 0.d0
+    vol_averaged_stress = 0.d0
+    call compute_hypo_stress(lmn,vol_averaged_strain, vol_averaged_stress)
+    !write(user_print_units(1),'(A)') 'Volume Averaged Strain'
+    !write(user_print_units(1),*) vol_averaged_strain
+    !write(user_print_units(1),'(A)') 'Volume Averaged Stress'
+    !write(user_print_units(1),*) vol_averaged_stress
+    write(user_print_units(1),*) vol_averaged_strain(1), ',', vol_averaged_strain(2), ',', vol_averaged_stress(1), ';'
 
 end subroutine user_print
 
@@ -392,4 +404,180 @@ subroutine compute_J_integral(J_integral_value)
 
 
 end subroutine compute_J_integral
+
+subroutine compute_hypo_stress(lmn, vol_averaged_strain, vol_averaged_stress)
+    use Types
+    use ParamIO
+    use Mesh, only : extract_element_data
+    use Mesh, only : extract_node_data
+    use Mesh, only : zone,zone_list
+    use User_Subroutine_Storage
+    use Element_Utilities, only : N => shape_functions_3D
+    use Element_Utilities, only:  dNdxi => shape_function_derivatives_3D
+    use Element_Utilities, only:  dNdx => shape_function_spatial_derivatives_3D
+    use Element_Utilities, only : dNbardx => vol_avg_shape_function_derivatives_3D
+    use Element_Utilities, only : xi => integrationpoints_3D, w => integrationweights_3D
+    use Element_Utilities, only : dxdxi => jacobian_3D
+    use Element_Utilities, only : initialize_integration_points
+    use Element_Utilities, only : calculate_shapefunctions
+    use Element_Utilities, only : invert_small
+    implicit none
+
+    integer, intent ( in )      :: lmn                                          ! Element number
+
+    real (prec), intent( out )  ::  vol_averaged_strain(6)
+    real (prec), intent( out )  ::  vol_averaged_stress(6)
+
+
+    ! Local variables
+
+    integer    :: node_identifier                              ! Flag identifying node type
+    integer    :: element_identifier                           ! Flag identifying element type (specified in .in file)
+    integer    :: n_nodes                                      ! # nodes on the element
+    integer    :: n_properties                                 ! # properties for the element
+
+
+    integer, allocatable    :: node_list(:)                                ! List of nodes on the element (connectivity)
+
+    real( prec ), allocatable   :: element_properties(:)                  ! Element or material properties, stored in order listed in input file
+
+    real( prec ), allocatable   :: initial_state_variables(:)             ! Element state variables at start of step.
+    real( prec ), allocatable   :: updated_state_variables(:)             ! State variables at end of time step
+    integer    :: n_state_variables                                         ! # state variables for the element
+
+    real( prec ), allocatable   :: x(:,:)                                  ! Nodal coords x(i,a) is ith coord of ath node
+    real( prec ), allocatable   :: dof_increment(:)                        ! DOF increment, using usual element storage convention
+    real( prec ), allocatable   :: dof_total(:)                            ! accumulated DOF, using usual element storage convention
+
+    integer      :: n_points,kint,i
+    integer      :: n_coords, n_dof
+    integer      :: iof
+    integer      :: status
+
+    real (prec)  ::  el_vol
+    real (prec), allocatable  ::  B(:,:)               ! strain = B*(dof_total+dof_increment)
+    real (prec)  ::  strain(6)                         ! Strain vector contains [e11, e22, e33, 2e12, 2e13, 2e23]
+    real (prec)  ::  dstrain(6)                        ! Strain increment vector
+    real (prec)  ::  D(6,6)                            ! stress = D*(strain+dstrain)  (NOTE FACTOR OF 2 in shear strain)
+    real (prec)  ::  dxidx(3,3), determinant           ! Jacobian inverse and determinant
+    real (prec)  :: s0, e0, Kmat, nmat                       ! Material properties
+    real (prec)  ::  stress(6)                         ! Stress vector contains [s11, s22, s33, s12, s13, s23]
+    real (prec)  ::  B_aug(6,length_dof_array)         ! array to augment B in the case of B-bar elements
+    !
+    !  Allocate memory to store element data.
+    !  The variables specifying the size of the arrays are stored in the module user_subroutine_storage
+    !  They are initialized when the input file is read, and specify the size of the arrays required to store data
+    !  for any element in the mesh.  Some elements may require less storage.
+
+    allocate(node_list(length_node_array), stat=status)
+    allocate(element_properties(length_property_array), stat=status)
+    allocate(initial_state_variables(length_state_variable_array), stat=status)
+    allocate(updated_state_variables(length_state_variable_array), stat=status)
+    allocate(x(3,length_coord_array/3), stat=status)
+    allocate(dof_increment(length_dof_array), stat=status)
+    allocate(dof_total(length_dof_array), stat=status)
+    allocate(B(6,length_dof_array), stat=status)
+
+    if (status/=0) then
+       write(IOW,*) ' Error in subroutine compute_volume_average_3D'
+       write(IOW,*) ' Unable to allocate memory for element variables '
+       stop
+    endif
+    !
+    ! Extract element and node data from global storage (see module Mesh.f90 for the source code for these subroutines)
+
+    call extract_element_data(lmn,element_identifier,n_nodes,node_list,n_properties,element_properties, &
+                                            n_state_variables,initial_state_variables,updated_state_variables)
+
+    do i = 1, n_nodes
+        iof = 3*(i-1)+1     ! Points to first DOF for the node in the dof_increment and dof_total arrays
+        call extract_node_data(node_list(i),node_identifier,n_coords,x(1:3,i),n_dof, &
+                                                 dof_increment(iof:iof+2),dof_total(iof:iof+2))
+    end do
+
+    if (n_nodes == 4) n_points = 1
+    if (n_nodes == 10) n_points = 4
+    if (n_nodes == 8) n_points = 8
+    if (n_nodes == 20) n_points = 27
+
+    call initialize_integration_points(n_points, n_nodes, xi, w)
+
+
+    D = 0.d0
+
+
+    ! need to define volume averages for b-bar -- cannot do inline with B calculation :(
+    dNbardx = 0.d0
+    el_vol = 0.d0
+    do kint = 1, n_points
+        call calculate_shapefunctions(xi(1:3,kint),n_nodes,N,dNdxi)
+        dxdxi = matmul(x(1:3,1:n_nodes),dNdxi(1:n_nodes,1:3))
+        call invert_small(dxdxi,dxidx,determinant)
+        dNdx(1:n_nodes,1:3) = matmul(dNdxi(1:n_nodes,1:3),dxidx)
+
+        dNbardx = dNbardx + dNdx*w(kint)*determinant
+        el_vol = el_vol + w(kint)*determinant
+    end do
+
+    dNbardx = (1/el_vol)*dNbardx
+
+
+    !     --  Loop over integration points
+    do kint = 1, n_points
+        call calculate_shapefunctions(xi(1:3,kint),n_nodes,N,dNdxi)
+        dxdxi = matmul(x(1:3,1:n_nodes),dNdxi(1:n_nodes,1:3))
+        call invert_small(dxdxi,dxidx,determinant)
+        dNdx(1:n_nodes,1:3) = matmul(dNdxi(1:n_nodes,1:3),dxidx)
+        B = 0.d0
+        B(1,1:3*n_nodes-2:3) = dNdx(1:n_nodes,1)
+        B(2,2:3*n_nodes-1:3) = dNdx(1:n_nodes,2)
+        B(3,3:3*n_nodes:3)   = dNdx(1:n_nodes,3)
+        B(4,1:3*n_nodes-2:3) = dNdx(1:n_nodes,2)
+        B(4,2:3*n_nodes-1:3) = dNdx(1:n_nodes,1)
+        B(5,1:3*n_nodes-2:3) = dNdx(1:n_nodes,3)
+        B(5,3:3*n_nodes:3)   = dNdx(1:n_nodes,1)
+        B(6,2:3*n_nodes-1:3) = dNdx(1:n_nodes,3)
+        B(6,3:3*n_nodes:3)   = dNdx(1:n_nodes,2)
+
+        !B-Bar element
+        B_aug = 0.d0
+        B_aug(1,1:3*n_nodes-2:3) = dNbardx(1:n_nodes,1)-dNdx(1:n_nodes,1)
+        B_aug(1,2:3*n_nodes-1:3) = dNbardx(1:n_nodes,2)-dNdx(1:n_nodes,2)
+        B_aug(1,3:3*n_nodes:3) = dNbardx(1:n_nodes,3)-dNdx(1:n_nodes,3)
+        B_aug(2,1:3*n_nodes-2:3) = dNbardx(1:n_nodes,1)-dNdx(1:n_nodes,1)
+        B_aug(2,2:3*n_nodes-1:3) = dNbardx(1:n_nodes,2)-dNdx(1:n_nodes,2)
+        B_aug(2,3:3*n_nodes:3) = dNbardx(1:n_nodes,3)-dNdx(1:n_nodes,3)
+        B_aug(3,1:3*n_nodes-2:3) = dNbardx(1:n_nodes,1)-dNdx(1:n_nodes,1)
+        B_aug(3,2:3*n_nodes-1:3) = dNbardx(1:n_nodes,2)-dNdx(1:n_nodes,2)
+        B_aug(3,3:3*n_nodes:3) = dNbardx(1:n_nodes,3)-dNdx(1:n_nodes,3)
+        B = B + (1.d0/3.d0)*B_aug
+
+        strain = matmul(B,dof_total)
+        dstrain = matmul(B,dof_increment)
+        s0 = element_properties(1)
+        e0 = element_properties(2)
+        nmat = element_properties(3)
+        Kmat = element_properties(4)
+
+        call calculate_hypoelast_d(strain+dstrain, s0, e0, nmat, Kmat, D, stress)
+
+        vol_averaged_strain(1:6) = vol_averaged_strain(1:6) + (strain(1:6)+dstrain(1:6))*w(kint)*determinant
+        vol_averaged_stress(1:6) = vol_averaged_stress(1:6) + stress(1:6)*w(kint)*determinant
+
+    end do
+
+    vol_averaged_strain = vol_averaged_strain/el_vol
+    vol_averaged_stress = vol_averaged_stress/el_vol
+
+    deallocate(node_list)
+    deallocate(element_properties)
+    deallocate(initial_state_variables)
+    deallocate(updated_state_variables)
+    deallocate(x)
+    deallocate(dof_increment)
+    deallocate(dof_total)
+    deallocate(B)
+
+    return
+end subroutine compute_hypo_stress
 

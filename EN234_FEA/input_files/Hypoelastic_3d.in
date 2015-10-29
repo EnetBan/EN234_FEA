@@ -67,6 +67,7 @@
         HISTORY, dof_history
           0.d0, 0.d0                  % Each line gives a time value and then a function value
          10.d0, .1d0
+         20.d0, -.1d0
         END HISTORY
 
         HISTORY, dload_history
@@ -159,8 +160,8 @@
           INITIAL TIME STEP, 1.d0        % Test of a comment here
           MAX TIME STEP, 1.d0
           MIN TIME STEP, 0.0001d0
-          MAX NUMBER OF STEPS, 20
-          STOP TIME, 10.d0
+          MAX NUMBER OF STEPS, 120
+          STOP TIME, 20.d0
           STATE PRINT STEP INTERVAL, 1
           USER PRINT STEP INTERVAL, 1
 
@@ -190,11 +191,10 @@
          END PRINT STATE
 
 %        The lines below are just examples - no code exists to use them.
-%          USER PRINT FILES
+          USER PRINT FILES
 %          List file names to contain the output. Fortran unit numbers are provided to each file in the user subroutine
-%            filename1.dat
-%            filename2.dat
-%          END USER PRINT FILES
+            Output_files\hypoelast.dat
+          END USER PRINT FILES
 %          USER PRINT PARAMETERS
 %            list of parameters to be passed to the subroutine
 %             1.d0, 6.d0

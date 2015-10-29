@@ -456,7 +456,7 @@ subroutine calculate_hypoelast_d(tot_strain, s0, e0, n, K, D, stress)
     use Types
     use ParamIO
 
-    real( prec ), intent( in )    :: tot_strain(6)   ! Coordinates, stored as x1,(x2),(x3) for each node in turn
+    real( prec ), intent( in )    :: tot_strain(6)   ! [e11, e22, e33, 2e12, 2e13, 2e23]
     real( prec ), intent( in )    :: s0              ! Material property
     real( prec ), intent( in )    :: e0              ! Material property
     real( prec ), intent( in )    :: n               ! Material property
@@ -480,20 +480,21 @@ subroutine calculate_hypoelast_d(tot_strain, s0, e0, n, K, D, stress)
     stress = 0.d0
 
 
+
     ! calculating epsilon_e
-    svol = sum(tot_strain(1:3))
     sdev = tot_strain
-    sdev(1:3) = tot_strain(1:3)-svol/3
+    svol = sum(sdev(1:3))
+    sdev(1:3) = sdev(1:3)-svol/3.d0
     sdev(4:6) = (1.d0/2.d0)*sdev(4:6) ! getting rid of factor of 2 on shear strains
-    epsilon_e = sqrt((2.d0/3.d0)*(sum(sdev(1:3)*sdev(1:3))+2*sum(sdev(4:6)*sdev(4:6))))
+    epsilon_e = sqrt((2.d0/3.d0)*(sum(sdev(1:3)*sdev(1:3))+2.d0*sum(sdev(4:6)*sdev(4:6))))
 
     ! calculating sigma_e & Et
     if (epsilon_e <= e0)  then
-        sigma_e = s0*(sqrt((1+n**2)/(n-1)**2-(n/(n-1)-epsilon_e/e0)**2)-1/(n-1))
-        Et = (epsilon_e+e0*n-epsilon_e*n)*s0/(e0**2*(n-1)*sqrt((1+epsilon_e*(n-1)*(epsilon_e+2*e0*n-epsilon_e*n)/e0**2)/(n-1)**2))
+        sigma_e = s0*(sqrt((1.d0+n**2)/(n-1.d0)**2-(n/(n-1.d0)-epsilon_e/e0)**2)-1.d0/(n-1.d0))
+        Et = s0*(n/(n-1)-epsilon_e/e0)/(e0*sqrt((n**2+1)/(n-1)**2-(n/(n-1)-epsilon_e/e0)**2))
     else
-        sigma_e = (epsilon_e/e0)**(1/n)
-        Et = ((epsilon_e/e0)**(1/n))/(epsilon_e*n)
+        sigma_e = s0*(epsilon_e/e0)**(1.d0/n)
+        Et = (s0*(epsilon_e/e0)**(1.d0/n-1.d0))/(e0*n)
     endif
 
     Es = Et
@@ -517,11 +518,13 @@ subroutine calculate_hypoelast_d(tot_strain, s0, e0, n, K, D, stress)
 
     e_dyadic_e = spread(sdev,dim=2,ncopies=6)*spread(sdev,dim=1,ncopies=6)
 
+    D = 0.d0
     if (epsilon_e /= 0) then
         D = D + (4/(9*epsilon_e**2))*(Et-Es)*e_dyadic_e
     endif
 
     D = D+(Es/3.d0)*M1+(K-2.d0*Es/9.d0)*M2
+
     return
 end subroutine calculate_hypoelast_d
 
