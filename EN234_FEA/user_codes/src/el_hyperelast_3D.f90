@@ -66,13 +66,16 @@ subroutine el_hyperelast_3d(lmn, element_identifier, n_nodes, node_property_list
     real (prec)  ::  vol                               ! volume of element
     real (prec)  ::  dxidx(3,3), determinant           ! Jacobian inverse and determinant
     real (prec)  ::  x(3,length_coord_array/3)         ! Re-shaped coordinate array x(i,a) is ith coord of ath node
-    real (prec)  :: E, xnu, D44, D11, D12              ! Material properties
+    real (prec)  ::  mu1, K1                           ! Material properties
+    real (prec)  ::  F(3,3), Finverses(3,3), J         ! Deformation gradient matrix, a matrix of its inverses, and its determinant
+    real (prec)  ::  BC(3,3), Bkk                      ! Left C-G Tensor and its trace
+    real (prec)  ::  dNdy(n_nodes,3)                   ! Shape function derivatives w.r.t deformed coords
     !
-    !     Subroutine to compute element stiffness matrix and residual force vector for 3D linear elastic elements
+    !     Subroutine to compute element stiffness matrix and residual force vector for 3D hyperelastic elements
     !     El props are:
 
-    !     element_properties(1)         Young's modulus
-    !     element_properties(2)         Poisson's ratio
+    !     element_properties(1)         Shear Modulus
+    !     element_properties(2)         Bulk Modulus
 
     fail = .false.
     
@@ -87,44 +90,44 @@ subroutine el_hyperelast_3d(lmn, element_identifier, n_nodes, node_property_list
 
     element_residual = 0.d0
     element_stiffness = 0.d0
+    F = 0.d0
+    J = 0.d0
 	
-    D = 0.d0
-    E = element_properties(1)
-    xnu = element_properties(2)
-    d44 = 0.5D0*E/(1+xnu) 
-    d11 = (1.D0-xnu)*E/( (1+xnu)*(1-2.D0*xnu) )
-    d12 = xnu*E/( (1+xnu)*(1-2.D0*xnu) )
-    D(1:3,1:3) = d12
-    D(1,1) = d11
-    D(2,2) = d11
-    D(3,3) = d11
-    D(4,4) = d44
-    D(5,5) = d44
-    D(6,6) = d44
-
-    ! need to define volume averages in the case of b-bar -- cannot do inline with B calculation :(
-    if (element_identifier == 1002) then
-        dNbardx = 0.d0
-        vol = 0.d0
-        do kint = 1, n_points
-            call calculate_shapefunctions(xi(1:3,kint),n_nodes,N,dNdxi)
-            dxdxi = matmul(x(1:3,1:n_nodes),dNdxi(1:n_nodes,1:3))
-            call invert_small(dxdxi,dxidx,determinant)
-            dNdx(1:n_nodes,1:3) = matmul(dNdxi(1:n_nodes,1:3),dxidx)
-
-            dNbardx = dNbardx + dNdx*w(kint)*determinant
-            vol = vol + w(kint)*determinant
-        end do
-
-        dNbardx = (1/vol)*dNbardx
-    end if
+    mu1 = element_properties(1)
+    K1 = element_properties(2)
 
     !     --  Loop over integration points
     do kint = 1, n_points
+        ! calculate shapefunction derivatives
         call calculate_shapefunctions(xi(1:3,kint),n_nodes,N,dNdxi)
         dxdxi = matmul(x(1:3,1:n_nodes),dNdxi(1:n_nodes,1:3))
         call invert_small(dxdxi,dxidx,determinant)
         dNdx(1:n_nodes,1:3) = matmul(dNdxi(1:n_nodes,1:3),dxidx)
+
+        ! calculate Fij
+        F(1,:) = matmul(dof_total(1:3*n_nodes-2:3),dNdx)
+        F(2,:) = matmul(dof_total(2:3*n_nodes-1:3),dNdx)
+        F(3,:) = matmul(dof_total(3:3*n_nodes:3),dNdx)
+        F(1,1) = F(1,1)+1.d0
+        F(2,2) = F(2,2)+1.d0
+        F(3,3) = F(3,3)+1.d0
+        Finverses(:,:) = F(:,:)**(-1.d0)                                   ! inverses
+
+        J = F(1,1) * (F(2,2)*F(3,3) - F(3,2)*F(2,3))  &
+            - F(1,2) * (F(2,1)*F(3,3) - F(3,1)*F(2,3))  &
+            + F(1,3) * (F(2,1)*F(3,2) - F(3,1)*F(2,2))                    ! determinant
+
+        ! calculate left C-G tensor
+        BC = matmul(F,transpose(F))
+        Bkk = BC(1,1) + BC(2,2) + BC(3,3)
+
+        ! calculate dNdy
+        dNdy(:,1) = matmul(dNdx,Finverses(:,1))
+        dNdy(:,2) = matmul(dNdx,Finverses(:,2))
+        dNdy(:,3) = matmul(dNdx,Finverses(:,3))
+
+
+!!!!! left off here for today
         B = 0.d0
         B(1,1:3*n_nodes-2:3) = dNdx(1:n_nodes,1)
         B(2,2:3*n_nodes-1:3) = dNdx(1:n_nodes,2)
