@@ -60,16 +60,25 @@ subroutine el_hyperelast_3d(lmn, element_identifier, n_nodes, node_property_list
 
     real (prec)  ::  strain(6), dstrain(6)             ! Strain vector contains [e11, e22, e33, 2e12, 2e13, 2e23]
     real (prec)  ::  stress(6)                         ! Stress vector contains [s11, s22, s33, s12, s13, s23]
+    real (prec)  ::  stressk(6)                        ! kirchoff stress vector contains [s11, s22, s33, s12, s13, s23]
     real (prec)  ::  D(6,6)                            ! stress = D*(strain+dstrain)  (NOTE FACTOR OF 2 in shear strain)
     real (prec)  ::  B(6,length_dof_array)             ! strain = B*(dof_total+dof_increment)
-    real (prec)  ::  B_aug(6,length_dof_array)         ! array to augment B in the case of B-bar elements
     real (prec)  ::  vol                               ! volume of element
     real (prec)  ::  dxidx(3,3), determinant           ! Jacobian inverse and determinant
     real (prec)  ::  x(3,length_coord_array/3)         ! Re-shaped coordinate array x(i,a) is ith coord of ath node
     real (prec)  ::  mu1, K1                           ! Material properties
-    real (prec)  ::  F(3,3), Finverses(3,3), J         ! Deformation gradient matrix, a matrix of its inverses, and its determinant
-    real (prec)  ::  BC(3,3), Bkk                      ! Left C-G Tensor and its trace
+    real (prec)  ::  F(3,3), Finv(3,3), J              ! Deformation gradient matrix, its inverse, and its determinant
+    real (prec)  ::  BC(3,3), BCinv(3,3), BCdet, Bkk   ! Left C-G Tensor and its inverse, determinant, and trace
+    real (prec)  ::  BCv(6), BCinvv(6), Iv(6)          ! vector forms of BC and its inverse and the identity matrix [B11,B22,B33,B12,B13,B23]
     real (prec)  ::  dNdy(n_nodes,3)                   ! Shape function derivatives w.r.t deformed coords
+    real (prec)  ::  M1(6,6)                           ! Matrix for computing D
+    real (prec)  ::  G(6,9)                            ! G matrix for stiffness
+    real (prec)  ::  Bstar(9, 3*n_nodes)               ! B* matrix
+    real (prec)  ::  sigma(3*n_nodes,3*n_nodes)        ! sigma matrix
+    real (prec)  ::  S(3*n_nodes,3*n_nodes), Pvec(3*n_nodes) ! various matrices for computing sigma
+    real (prec)  ::  Pmat(3*n_nodes,3*n_nodes), Svec(3*n_nodes)
+    real (prec)  ::  Smat(3*n_nodes,3*n_nodes)
+    real (prec)  ::  i                                 ! misc counter
     !
     !     Subroutine to compute element stiffness matrix and residual force vector for 3D hyperelastic elements
     !     El props are:
@@ -90,8 +99,6 @@ subroutine el_hyperelast_3d(lmn, element_identifier, n_nodes, node_property_list
 
     element_residual = 0.d0
     element_stiffness = 0.d0
-    F = 0.d0
-    J = 0.d0
 	
     mu1 = element_properties(1)
     K1 = element_properties(2)
@@ -105,62 +112,140 @@ subroutine el_hyperelast_3d(lmn, element_identifier, n_nodes, node_property_list
         dNdx(1:n_nodes,1:3) = matmul(dNdxi(1:n_nodes,1:3),dxidx)
 
         ! calculate Fij
+        F = 0.d0
+        Finv = 0.d0
+        J = 0.d0
         F(1,:) = matmul(dof_total(1:3*n_nodes-2:3),dNdx)
         F(2,:) = matmul(dof_total(2:3*n_nodes-1:3),dNdx)
         F(3,:) = matmul(dof_total(3:3*n_nodes:3),dNdx)
         F(1,1) = F(1,1)+1.d0
         F(2,2) = F(2,2)+1.d0
         F(3,3) = F(3,3)+1.d0
-        Finverses(:,:) = F(:,:)**(-1.d0)                                   ! inverses
-
-        J = F(1,1) * (F(2,2)*F(3,3) - F(3,2)*F(2,3))  &
-            - F(1,2) * (F(2,1)*F(3,3) - F(3,1)*F(2,3))  &
-            + F(1,3) * (F(2,1)*F(3,2) - F(3,1)*F(2,2))                    ! determinant
+        call invert_small(F, Finv, J)                         ! determinant and inverse
 
         ! calculate left C-G tensor
+        BC = 0.d0
+        BCinv = 0.d0
+        BCdet = 0.d0
         BC = matmul(F,transpose(F))
+        call invert_small(BC, BCinv, BCdet)
         Bkk = BC(1,1) + BC(2,2) + BC(3,3)
+        BCv(1) = BC(1,1)
+        BCv(2) = BC(2,2)
+        BCv(3) = BC(3,3)
+        BCv(4) = BC(1,2)
+        BCv(5) = BC(1,3)
+        BCv(6) = BC(2,3)
+        BCinvv(1) = BCinv(1,1)
+        BCinvv(2) = BCinv(2,2)
+        BCinvv(3) = BCinv(3,3)
+        BCinvv(4) = BCinv(1,2)
+        BCinvv(5) = BCinv(1,3)
+        BCinvv(6) = BCinv(2,3)
+        Iv = 0.d0
+        Iv(1:3) = 1
+
+
 
         ! calculate dNdy
-        dNdy(:,1) = matmul(dNdx,Finverses(:,1))
-        dNdy(:,2) = matmul(dNdx,Finverses(:,2))
-        dNdy(:,3) = matmul(dNdx,Finverses(:,3))
+        dNdy = 0.d0
+        dNdy(:,1) = matmul(dNdx,Finv(:,1))
+        dNdy(:,2) = matmul(dNdx,Finv(:,2))
+        dNdy(:,3) = matmul(dNdx,Finv(:,3))
+
+        !calculate kirchoff stress
+        stressk = 0.d0
+        stressk(1:3) = (mu1/J**(2.d0/3.d0))*(BCv(1:3)-Bkk/3)+J*K1*(J-1)
+        stressk(4:6) = (mu1/J**(2.d0/3.d0))*BCv(4:6)
 
 
-!!!!! left off here for today
+        ! B is in relation to y
         B = 0.d0
-        B(1,1:3*n_nodes-2:3) = dNdx(1:n_nodes,1)
-        B(2,2:3*n_nodes-1:3) = dNdx(1:n_nodes,2)
-        B(3,3:3*n_nodes:3)   = dNdx(1:n_nodes,3)
-        B(4,1:3*n_nodes-2:3) = dNdx(1:n_nodes,2)
-        B(4,2:3*n_nodes-1:3) = dNdx(1:n_nodes,1)
-        B(5,1:3*n_nodes-2:3) = dNdx(1:n_nodes,3)
-        B(5,3:3*n_nodes:3)   = dNdx(1:n_nodes,1)
-        B(6,2:3*n_nodes-1:3) = dNdx(1:n_nodes,3)
-        B(6,3:3*n_nodes:3)   = dNdx(1:n_nodes,2)
+        B(1,1:3*n_nodes-2:3) = dNdy(1:n_nodes,1)
+        B(2,2:3*n_nodes-1:3) = dNdy(1:n_nodes,2)
+        B(3,3:3*n_nodes:3)   = dNdy(1:n_nodes,3)
+        B(4,1:3*n_nodes-2:3) = dNdy(1:n_nodes,2)
+        B(4,2:3*n_nodes-1:3) = dNdy(1:n_nodes,1)
+        B(5,1:3*n_nodes-2:3) = dNdy(1:n_nodes,3)
+        B(5,3:3*n_nodes:3)   = dNdy(1:n_nodes,1)
+        B(6,2:3*n_nodes-1:3) = dNdy(1:n_nodes,3)
+        B(6,3:3*n_nodes:3)   = dNdy(1:n_nodes,2)
 
-        if (element_identifier == 1002) then
-            !B-Bar element
-            B_aug = 0.d0
-            B_aug(1,1:3*n_nodes-2:3) = dNbardx(1:n_nodes,1)-dNdx(1:n_nodes,1)
-            B_aug(1,2:3*n_nodes-1:3) = dNbardx(1:n_nodes,2)-dNdx(1:n_nodes,2)
-            B_aug(1,3:3*n_nodes:3) = dNbardx(1:n_nodes,3)-dNdx(1:n_nodes,3)
-            B_aug(2,1:3*n_nodes-2:3) = dNbardx(1:n_nodes,1)-dNdx(1:n_nodes,1)
-            B_aug(2,2:3*n_nodes-1:3) = dNbardx(1:n_nodes,2)-dNdx(1:n_nodes,2)
-            B_aug(2,3:3*n_nodes:3) = dNbardx(1:n_nodes,3)-dNdx(1:n_nodes,3)
-            B_aug(3,1:3*n_nodes-2:3) = dNbardx(1:n_nodes,1)-dNdx(1:n_nodes,1)
-            B_aug(3,2:3*n_nodes-1:3) = dNbardx(1:n_nodes,2)-dNdx(1:n_nodes,2)
-            B_aug(3,3:3*n_nodes:3) = dNbardx(1:n_nodes,3)-dNdx(1:n_nodes,3)
-            B = B + (1.d0/3.d0)*B_aug
-        end if
-        strain = matmul(B,dof_total)
-        dstrain = matmul(B,dof_increment)
+        ! construct D
+        D = 0.d0
+        M1 = 0.d0
+        M1(1,1) = 1.d0
+        M1(2,2) = 1.d0
+        M1(3,3) = 1.d0
+        M1(4,4) = .5d0
+        M1(5,5) = .5d0
+        M1(6,6) = .5d0
+
+        D = (mu1/J**(2.d0/3.d0))*M1+(mu1/(3*J**(2.d0/3.d0)))*(Bkk/3 &
+            * spread(Iv,dim=2,ncopies=6)*spread(BCinvv,dim=1,ncopies=6) &
+            - spread(Iv,dim=2,ncopies=6)*spread(Iv,dim=1,ncopies=6) &
+            - spread(BCv,dim=2,ncopies=6)*spread(BCinvv,dim=1,ncopies=6)) &
+            + K1*J*(J-.5d0)*(spread(Iv,dim=2,ncopies=6)*spread(Bcinvv,dim=1,ncopies=6))
+
+        ! fill G
+        G = 0.d0
+        G(1,1) = 2*BC(1,1)
+        G(1,4) = 2*BC(1,2)
+        G(1,6) = 2*BC(1,3)
+        G(2,2) = 2*BC(2,2)
+        G(2,5) = 2*BC(1,3)
+        G(2,8) = 2*BC(2,3)
+        G(3,3) = 2*BC(3,3)
+        G(3,7) = 2*BC(1,3)
+        G(3,9) = 2*BC(1,3)
+        G(4,1:2) = 2*BC(1,2)
+        G(4,4) = 2*BC(2,2)
+        G(4,5) = 2*BC(1,1)
+        G(4,6) = 2*BC(2,3)
+        G(4,8) = 2*BC(1,3)
+        G(5,1) = 2*BC(1,3)
+        G(5,3) = 2*BC(1,3)
+        G(5,4) = 2*BC(2,3)
+        G(5,6) = 2*BC(3,3)
+        G(5,7) = 2*BC(1,1)
+        G(5,9) = 2*BC(1,2)
+        G(6,2:3) = 2*BC(2,3)
+        G(6,5) = 2*BC(1,3)
+        G(6,7) = 2*BC(1,2)
+        G(6,8) = 2*BC(3,3)
+        G(6,9) = 2*BC(2,2)
+
+        ! construct B*
+        Bstar = 0.d0
+        Bstar(1,1:3*n_nodes-2:3) = dNdy(1:n_nodes,1)
+        Bstar(2,2:3*n_nodes-1:3) = dNdy(1:n_nodes,2)
+        Bstar(3,3:3*n_nodes:3)   = dNdy(1:n_nodes,3)
+        Bstar(4,1:3*n_nodes-2:3) = dNdy(1:n_nodes,2)
+        Bstar(5,2:3*n_nodes-1:3) = dNdy(1:n_nodes,1)
+        Bstar(6,1:3*n_nodes-2:3) = dNdy(1:n_nodes,3)
+        Bstar(7,3:3*n_nodes:3)   = dNdy(1:n_nodes,1)
+        Bstar(8,2:3*n_nodes-1:3) = dNdy(1:n_nodes,3)
+        Bstar(9,3:3*n_nodes:3)   = dNdy(1:n_nodes,2)
+
+        ! construct sigma
+        S = reshape(matmul(transpose(B),stressk),(/3,length_dof_array/3/))
+        do i = 1,n_nodes
+            Pvec = reshape(spread(transpose(dNdy(i:i,1:3)),dim=2,ncopies=n_nodes),(/3*n_nodes/))
+            Pmat(3*i-2:3*i,1:3*n_nodes) = spread(Pvec,dim=1,ncopies=3)
+            Svec = reshape(spread(S(1:3,i:i),dim=2,ncopies=n_nodes),(/3*n_nodes/))
+            Smat(3*i-2:3*i,1:3*n_nodes) = spread(Svec,dim=1,ncopies=3)
+        end do
+        Sigma = Pmat*transpose(Smat)
+
+        !strain = matmul(B,dof_total)
+        !dstrain = matmul(B,dof_increment)
       
-        stress = matmul(D,strain+dstrain)
-        element_residual(1:3*n_nodes) = element_residual(1:3*n_nodes) - matmul(transpose(B),stress)*w(kint)*determinant
+        !stress = matmul(D,strain+dstrain)
+        element_residual(1:3*n_nodes) = element_residual(1:3*n_nodes) + matmul(transpose(B),stressk)*w(kint)*determinant
 
         element_stiffness(1:3*n_nodes,1:3*n_nodes) = element_stiffness(1:3*n_nodes,1:3*n_nodes) &
-            + matmul(transpose(B(1:6,1:3*n_nodes)),matmul(D,B(1:6,1:3*n_nodes)))*w(kint)*determinant
+            + (matmul(transpose(B),matmul(D,matmul(G,Bstar)))-Sigma) &
+            *w(kint)*determinant
 
     end do
   
