@@ -152,8 +152,8 @@ subroutine el_linelast_3dbasic(lmn, element_identifier, n_nodes, node_property_l
         end if
         strain = matmul(B,dof_total)
         dstrain = matmul(B,dof_increment)
-      
         stress = matmul(D,strain+dstrain)
+        write(IOW,*) 'stress', stress
         element_residual(1:3*n_nodes) = element_residual(1:3*n_nodes) - matmul(transpose(B),stress)*w(kint)*determinant
 
         element_stiffness(1:3*n_nodes,1:3*n_nodes) = element_stiffness(1:3*n_nodes,1:3*n_nodes) &
