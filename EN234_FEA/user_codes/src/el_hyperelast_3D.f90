@@ -479,6 +479,7 @@ subroutine fieldvars_hyperelast_3d(lmn, element_identifier, n_nodes, node_proper
         F = 0.d0
         Finv = 0.d0
         J = 0.d0
+        disp = dof_total + dof_increment
         F(1,:) = matmul(disp(1:3*n_nodes-2:3),dNdx(1:n_nodes,1:3))
         F(2,:) = matmul(disp(2:3*n_nodes-1:3),dNdx(1:n_nodes,1:3))
         F(3,:) = matmul(disp(3:3*n_nodes:3),dNdx(1:n_nodes,1:3))
