@@ -74,10 +74,10 @@
         SUBROUTINE PARAMETERS, stretch-rotation
            1      % stretch direction
            1.8d0   % Change in length
-           1     % No. extension steps
+           5     % No. extension steps
            90.d0  % Rotation angle (degrees)
            3      % Rotation axis (1,2,or 3)
-           10      % no. rotation steps
+           20      % no. rotation steps
            4      % no. base nodes
            4      % no. end nodes
            1      % Fixed node on base
@@ -143,8 +143,8 @@
           INITIAL TIME STEP, 1.d0        % Test of a comment here
           MAX TIME STEP, 1.d0
           MIN TIME STEP, 0.001d0
-          MAX NUMBER OF STEPS, 11
-          STOP TIME, 11.d0
+          MAX NUMBER OF STEPS, 100
+          STOP TIME, 25.d0
           STATE PRINT STEP INTERVAL, 1
           USER PRINT STEP INTERVAL, 1
 

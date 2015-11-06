@@ -59,11 +59,9 @@ subroutine el_hyperelast_3d(lmn, element_identifier, n_nodes, node_property_list
     integer      :: n_points,kint, ind
 
     real (prec)  ::  disp(3*n_nodes)                   ! displacement vector contains [u11, u12, u13, u21, etc]
-    real (prec)  ::  stress(6)                         ! Stress vector contains [s11, s22, s33, s12, s13, s23]
     real (prec)  ::  stressk(6)                        ! kirchoff stress vector contains [s11, s22, s33, s12, s13, s23]
     real (prec)  ::  D(6,6)                            ! stress = D*(strain+dstrain)  (NOTE FACTOR OF 2 in shear strain)
     real (prec)  ::  B(6,length_dof_array)             ! strain = B*(dof_total+dof_increment)
-    real (prec)  ::  vol                               ! volume of element
     real (prec)  ::  dxidx(3,3), determinant           ! Jacobian inverse and determinant
     real (prec)  ::  x(3,length_coord_array/3)         ! Re-shaped coordinate array x(i,a) is ith coord of ath node
     real (prec)  ::  mu1, K1                           ! Material properties
@@ -102,7 +100,6 @@ subroutine el_hyperelast_3d(lmn, element_identifier, n_nodes, node_property_list
     mu1 = element_properties(1)
     K1 = element_properties(2)
 
-    disp = dof_total+dof_increment
     dNdx = 0.d0
 
     !     --  Loop over integration points
@@ -112,6 +109,8 @@ subroutine el_hyperelast_3d(lmn, element_identifier, n_nodes, node_property_list
         dxdxi = matmul(x(1:3,1:n_nodes),dNdxi(1:n_nodes,1:3))
         call invert_small(dxdxi,dxidx,determinant)
         dNdx(1:n_nodes,1:3) = matmul(dNdxi(1:n_nodes,1:3),dxidx)
+
+        disp = dof_total + dof_increment
         ! calculate Fij
         F = 0.d0
         Finv = 0.d0
@@ -153,8 +152,8 @@ subroutine el_hyperelast_3d(lmn, element_identifier, n_nodes, node_property_list
 
         !calculate kirchoff stress
         stressk = 0.d0
-        stressk(1:3) = (mu1/(J**2)**(1.d0/3.d0))*(BCv(1:3)-Bkk/3.d0)+J*K1*(J-1.d0)
-        stressk(4:6) = (mu1/(J**2)**(1.d0/3.d0))*BCv(4:6)
+        stressk(1:3) = (mu1/((J**2)**(1.d0/3.d0)))*(BCv(1:3)-Bkk/3.d0)+J*K1*(J-1.d0)
+        stressk(4:6) = (mu1/((J**2)**(1.d0/3.d0)))*BCv(4:6)
 
         ! B is in relation to y
         B = 0.d0
@@ -178,7 +177,7 @@ subroutine el_hyperelast_3d(lmn, element_identifier, n_nodes, node_property_list
         M1(5,5) = .5d0
         M1(6,6) = .5d0
 
-        D = (mu1/(J**2)**(1.d0/3.d0))*M1+(mu1/(3*(J**2)**(1.d0/3.d0)))*(Bkk/3 &
+        D = (mu1/((J**2)**(1.d0/3.d0)))*M1+(mu1/(3*((J**2)**(1.d0/3.d0))))*(Bkk/3 &
             * spread(Iv,dim=2,ncopies=6)*spread(BCinvv,dim=1,ncopies=6) &
             - spread(Iv,dim=2,ncopies=6)*spread(Iv,dim=1,ncopies=6) &
             - spread(BCv,dim=2,ncopies=6)*spread(BCinvv,dim=1,ncopies=6)) &
@@ -190,11 +189,11 @@ subroutine el_hyperelast_3d(lmn, element_identifier, n_nodes, node_property_list
         G(1,4) = 2*BC(1,2)
         G(1,6) = 2*BC(1,3)
         G(2,2) = 2*BC(2,2)
-        G(2,5) = 2*BC(1,3)
+        G(2,5) = 2*BC(1,2)
         G(2,8) = 2*BC(2,3)
         G(3,3) = 2*BC(3,3)
         G(3,7) = 2*BC(1,3)
-        G(3,9) = 2*BC(1,3)
+        G(3,9) = 2*BC(2,3)
         G(4,1:2) = 2*BC(1,2)
         G(4,4) = 2*BC(2,2)
         G(4,5) = 2*BC(1,1)
@@ -211,7 +210,6 @@ subroutine el_hyperelast_3d(lmn, element_identifier, n_nodes, node_property_list
         G(6,7) = 2*BC(1,2)
         G(6,8) = 2*BC(3,3)
         G(6,9) = 2*BC(2,2)
-
         ! construct B*
         Bstar = 0.d0
         Bstar(1,1:3*n_nodes-2:3) = dNdy(1:n_nodes,1)
@@ -239,28 +237,6 @@ subroutine el_hyperelast_3d(lmn, element_identifier, n_nodes, node_property_list
         sig = Pmat*transpose(Smat)
 
         element_residual(1:3*n_nodes) = element_residual(1:3*n_nodes) - matmul(transpose(B),stressk)*w(kint)*determinant
-        !write(IOW,*) ' '
-        !write(IOW,*) 'disp', dof_total
-        !write(IOW,*) 'dispinc', dof_increment
-        !write(IOW,*) 'F', F(1,:)
-        !write(IOW,*) '  ', F(2,:)
-        !write(IOW,*) '  ', F(3,:)
-        !write(IOW,*) 'BC', BC(1,:)
-        !write(IOW,*) '  ', BC(2,:)
-        !write(IOW,*) '  ', BC(3,:)
-        !write(IOW,*) 'dNdy', dNdy
-        !write(IOW,*) 'J', J
-        !write(IOW,*) 'stressk', stressk
-        !write(IOW,*) 'term1', (mu1/(J**2)**(1.d0/3.d0))*(BCv(1:3)-Bkk/3.d0)
-        !write(IOW,*) 'term2', J*K1*(J-1.d0)
-        !write(IOW,*) 'B', B
-        !write(IOW,*) 'D', D
-        !write(IOW,*) 'G', G
-        !write(IOW,*) 'B*', Bstar
-        !write(IOW,*) 'sigma', sig(1,:)
-        !write(IOW,*) 'resid', element_residual(1:8)
-        !write(IOW,*) '    ', element_residual(9:16)
-        !write(IOW,*) '    ', element_residual(17:24)
         element_stiffness(1:3*n_nodes,1:3*n_nodes) = element_stiffness(1:3*n_nodes,1:3*n_nodes) &
             + (matmul(transpose(B),matmul(D,matmul(G,Bstar)))-sig) &
             *w(kint)*determinant
@@ -489,7 +465,6 @@ subroutine fieldvars_hyperelast_3d(lmn, element_identifier, n_nodes, node_proper
     mu1 = element_properties(1)
     K1 = element_properties(2)
 
-    disp = dof_total+dof_increment
     dNdx = 0.d0
 
     !     --  Loop over integration points
@@ -541,94 +516,8 @@ subroutine fieldvars_hyperelast_3d(lmn, element_identifier, n_nodes, node_proper
 
         !calculate kirchoff stress
         stressk = 0.d0
-        stressk(1:3) = (mu1/J**(2.d0/3.d0))*(BCv(1:3)-Bkk/3.d0)+J*K1*(J-1.d0)
-        stressk(4:6) = (mu1/J**(2.d0/3.d0))*BCv(4:6)
-
-        ! B is in relation to y
-        B = 0.d0
-        B(1,1:3*n_nodes-2:3) = dNdy(1:n_nodes,1)
-        B(2,2:3*n_nodes-1:3) = dNdy(1:n_nodes,2)
-        B(3,3:3*n_nodes:3)   = dNdy(1:n_nodes,3)
-        B(4,1:3*n_nodes-2:3) = dNdy(1:n_nodes,2)
-        B(4,2:3*n_nodes-1:3) = dNdy(1:n_nodes,1)
-        B(5,1:3*n_nodes-2:3) = dNdy(1:n_nodes,3)
-        B(5,3:3*n_nodes:3)   = dNdy(1:n_nodes,1)
-        B(6,2:3*n_nodes-1:3) = dNdy(1:n_nodes,3)
-        B(6,3:3*n_nodes:3)   = dNdy(1:n_nodes,2)
-
-        ! construct D
-        D = 0.d0
-        M1 = 0.d0
-        M1(1,1) = 1.d0
-        M1(2,2) = 1.d0
-        M1(3,3) = 1.d0
-        M1(4,4) = .5d0
-        M1(5,5) = .5d0
-        M1(6,6) = .5d0
-
-        D = (mu1/J**(2.d0/3.d0))*M1+(mu1/(3*J**(2.d0/3.d0)))*(Bkk/3 &
-            * spread(Iv,dim=2,ncopies=6)*spread(BCinvv,dim=1,ncopies=6) &
-            - spread(Iv,dim=2,ncopies=6)*spread(Iv,dim=1,ncopies=6) &
-            - spread(BCv,dim=2,ncopies=6)*spread(BCinvv,dim=1,ncopies=6)) &
-            + K1*J*(J-.5d0)*(spread(Iv,dim=2,ncopies=6)*spread(Bcinvv,dim=1,ncopies=6))
-
-        ! fill G
-        G = 0.d0
-        G(1,1) = 2*BC(1,1)
-        G(1,4) = 2*BC(1,2)
-        G(1,6) = 2*BC(1,3)
-        G(2,2) = 2*BC(2,2)
-        G(2,5) = 2*BC(1,3)
-        G(2,8) = 2*BC(2,3)
-        G(3,3) = 2*BC(3,3)
-        G(3,7) = 2*BC(1,3)
-        G(3,9) = 2*BC(1,3)
-        G(4,1:2) = 2*BC(1,2)
-        G(4,4) = 2*BC(2,2)
-        G(4,5) = 2*BC(1,1)
-        G(4,6) = 2*BC(2,3)
-        G(4,8) = 2*BC(1,3)
-        G(5,1) = 2*BC(1,3)
-        G(5,3) = 2*BC(1,3)
-        G(5,4) = 2*BC(2,3)
-        G(5,6) = 2*BC(3,3)
-        G(5,7) = 2*BC(1,1)
-        G(5,9) = 2*BC(1,2)
-        G(6,2:3) = 2*BC(2,3)
-        G(6,5) = 2*BC(1,3)
-        G(6,7) = 2*BC(1,2)
-        G(6,8) = 2*BC(3,3)
-        G(6,9) = 2*BC(2,2)
-
-        ! construct B*
-        Bstar = 0.d0
-        Bstar(1,1:3*n_nodes-2:3) = dNdy(1:n_nodes,1)
-        Bstar(2,2:3*n_nodes-1:3) = dNdy(1:n_nodes,2)
-        Bstar(3,3:3*n_nodes:3)   = dNdy(1:n_nodes,3)
-        Bstar(4,1:3*n_nodes-2:3) = dNdy(1:n_nodes,2)
-        Bstar(5,2:3*n_nodes-1:3) = dNdy(1:n_nodes,1)
-        Bstar(6,1:3*n_nodes-2:3) = dNdy(1:n_nodes,3)
-        Bstar(7,3:3*n_nodes:3)   = dNdy(1:n_nodes,1)
-        Bstar(8,2:3*n_nodes-1:3) = dNdy(1:n_nodes,3)
-        Bstar(9,3:3*n_nodes:3)   = dNdy(1:n_nodes,2)
-
-        ! construct sigma
-        sig = 0.d0
-        Pmat = 0.d0
-        Smat = 0.d0
-        S = reshape(matmul(transpose(B),stressk),(/3,length_dof_array/3/))
-        ind = 0
-        do ind = 1,n_nodes
-            Pvec = reshape(spread(transpose(dNdy(ind:ind,1:3)),dim=2,ncopies=n_nodes),(/3*n_nodes/))
-            Pmat(3*ind-2:3*ind,1:3*n_nodes) = spread(Pvec,dim=1,ncopies=3)
-            Svec = reshape(spread(S(1:3,ind),dim=2,ncopies=n_nodes),(/3*n_nodes/))
-            Smat(3*ind-2:3*ind,1:3*n_nodes) = spread(Svec,dim=1,ncopies=3)
-        end do
-        sig = Pmat*transpose(Smat)
-
-        !strain = matmul(B,dof_total)
-        !dstrain = matmul(B,dof_increment)
-        !stress = matmul(D,strain+dstrain)
+        stressk(1:3) = (mu1/((J**2)**(1.d0/3.d0)))*(BCv(1:3)-Bkk/3.d0)+J*K1*(J-1.d0)
+        stressk(4:6) = (mu1/((J**2)**(1.d0/3.d0)))*BCv(4:6)
 
         p = sum(stressk(1:3))/3.d0
         sdev = stressk
