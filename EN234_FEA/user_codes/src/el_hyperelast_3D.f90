@@ -121,6 +121,7 @@ subroutine el_hyperelast_3d(lmn, element_identifier, n_nodes, node_property_list
         F(1,1) = F(1,1)+1.d0
         F(2,2) = F(2,2)+1.d0
         F(3,3) = F(3,3)+1.d0
+        Finv = 0.d0
         call invert_small(F, Finv, J)                         ! determinant and inverse
         ! calculate left C-G tensor
         BC = 0.d0
@@ -462,6 +463,8 @@ subroutine fieldvars_hyperelast_3d(lmn, element_identifier, n_nodes, node_proper
 
     call initialize_integration_points(n_points, n_nodes, xi, w)
 
+    nodal_fieldvariables = 0.d0
+
     mu1 = element_properties(1)
     K1 = element_properties(2)
 
@@ -519,7 +522,6 @@ subroutine fieldvars_hyperelast_3d(lmn, element_identifier, n_nodes, node_proper
         stressk = 0.d0
         stressk(1:3) = (mu1/((J**2)**(1.d0/3.d0)))*(BCv(1:3)-Bkk/3.d0)+J*K1*(J-1.d0)
         stressk(4:6) = (mu1/((J**2)**(1.d0/3.d0)))*BCv(4:6)
-
         p = sum(stressk(1:3))/3.d0
         sdev = stressk
         sdev(1:3) = sdev(1:3)-p
