@@ -10,7 +10,7 @@ subroutine el_cahnhill_2d(lmn, element_identifier, n_nodes, node_property_list, 
     updated_state_variables,element_stiffness,element_residual, fail)      ! Output variables                          ! Output variables
     use Types
     use ParamIO
-    !  use Globals, only: TIME,DTIME  For a time dependent problem uncomment this line to access the time increment and total time
+    use Globals, only: TIME,DTIME  !For a time dependent problem uncomment this line to access the time increment and total time
     use Mesh, only : node
     use Element_Utilities, only : N => shape_functions_2D
     use Element_Utilities, only : dNdxi => shape_function_derivatives_2D
@@ -42,8 +42,8 @@ subroutine el_cahnhill_2d(lmn, element_identifier, n_nodes, node_property_list, 
     !   end type node
     !   Access these using node_property_list(k)%n_coords eg to find the number of coords for the kth node on the element
 
-    real( prec ), intent( in )    :: element_coords(length_coord_array)                     ! Coordinates, stored as x1,(x2),(x3) for each node in turn
-    real( prec ), intent( in )    :: dof_increment(length_dof_array)                        ! DOF increment, stored as du1,du2,du3,du4... for each node in turn
+    real( prec ), intent( in )    :: element_coords(length_coord_array)                     ! Coordinates, stored as mu1, c1 for each node in turn
+    real( prec ), intent( in )    :: dof_increment(length_dof_array)                        ! DOF increment, stored as dmu1,dc1... for each node in turn
     real( prec ), intent( in )    :: dof_total(length_dof_array)                            ! accumulated DOF, same storage as for increment
 
     real( prec ), intent( in )    :: element_properties(n_properties)                       ! Element or material properties, stored in order listed in input file
@@ -58,14 +58,12 @@ subroutine el_cahnhill_2d(lmn, element_identifier, n_nodes, node_property_list, 
     ! Local Variables
     integer      :: n_points,kint
 
-    real (prec)  ::  strain(3), dstrain(3)             ! Strain vector contains [e11, e22, 2e12]
-    real (prec)  ::  stress(3)                         ! Stress vector contains [s11, s22, s12]
+    real (prec)  ::  vals(6), dvals(6)                 ! Strain vector contains [mu, c, dmudx1, dmudx2, dcdx1, dcdx2]
     real (prec)  ::  D(3,3)                            ! stress = D*(strain+dstrain)  (NOTE FACTOR OF 2 in shear strain)
-    real (prec)  ::  B(3,length_dof_array)             ! strain = B*(dof_total+dof_increment)
-    real (prec)  ::  B_aug(3,length_dof_array)         ! array to augment B in the case of B-bar elements
+    real (prec)  ::  B(6,length_dof_array)             ! strain = B*(dof_total+dof_increment)
     real (prec)  ::  dxidx(2,2), determinant           ! Jacobian inverse and determinant
     real (prec)  ::  x(2,length_coord_array/2)         ! Re-shaped coordinate array x(i,a) is ith coord of ath node
-    real (prec)  :: E, xnu, D44, D11, D12              ! Material properties
+    real (prec)  ::  diffcon, kappa, theta             ! Material properties
     !
     !     Subroutine to compute element stiffness matrix and residual force vector for 2D linear elastic elements
     !     El props are:
@@ -88,34 +86,9 @@ subroutine el_cahnhill_2d(lmn, element_identifier, n_nodes, node_property_list, 
     element_stiffness = 0.d0
 
 
-	
-    D = 0.d0
-    E = element_properties(1)
-    xnu = element_properties(2)
-    d44 = 0.5D0*E/(1+xnu) 
-    d11 = (1.D0-xnu)*E/( (1+xnu)*(1-2.D0*xnu) )
-    d12 = xnu*E/( (1+xnu)*(1-2.D0*xnu) )
-    D(1:3,1:3) = d12
-    D(1,1) = d11
-    D(2,2) = d11
-    D(3,3) = d44
-    D(1:2,3) = 0.d0
-    D(3,1:2) = 0.d0
-
-    ! need to define volume averages in the case of b-bar -- cannot do inline with B calculation :(
-    if (element_identifier == 103) then
-        dNbardx = 0.d0
-        do kint = 1, n_points
-            call calculate_shapefunctions(xi(1:2,kint),n_nodes,N,dNdxi)
-            dxdxi = matmul(x(1:2,1:n_nodes),dNdxi(1:n_nodes,1:2))
-            call invert_small(dxdxi,dxidx,determinant)
-            dNdx(1:n_nodes,1:2) = matmul(dNdxi(1:n_nodes,1:2),dxidx)
-
-            dNbardx = dNbardx + dNdx*w(kint)*determinant
-        end do
-
-        dNbardx = (1/(determinant*SUM(w)))*dNbardx
-    endif
+	diffcon = element_properties(1)
+    kappa = element_properties(2)
+    theta = element_properties(3)
 
   
     !     --  Loop over integration points
@@ -124,26 +97,20 @@ subroutine el_cahnhill_2d(lmn, element_identifier, n_nodes, node_property_list, 
         dxdxi = matmul(x(1:2,1:n_nodes),dNdxi(1:n_nodes,1:2))
         call invert_small(dxdxi,dxidx,determinant)
         dNdx(1:n_nodes,1:2) = matmul(dNdxi(1:n_nodes,1:2),dxidx)
+
         B = 0.d0
-        B(1,1:2*n_nodes-1:2) = dNdx(1:n_nodes,1)
-        B(2,2:2*n_nodes:2) = dNdx(1:n_nodes,2)
-        B(3,1:2*n_nodes-1:2)   = dNdx(1:n_nodes,2)
-        B(3,2:2*n_nodes-1:2) = dNdx(1:n_nodes,1)
+        B(1,1:2*n_nodes-1:2) = N(1:n_nodes)
+        B(2,2:2*n_nodes:2) = N(1:n_nodes)
+        B(3,1:2*n_nodes-1:2)   = dNdx(1:n_nodes,1)
+        B(4,1:2*n_nodes-1:2)   = dNdx(1:n_nodes,2)
+        B(5,2:2*n_nodes:2)   = dNdx(1:n_nodes,1)
+        B(6,2:2*n_nodes:2)   = dNdx(1:n_nodes,2)
 
-        if (element_identifier == 103) then
-            !B-Bar element
-            B_aug = 0.d0
-            B_aug(1,1:2*n_nodes-1:2) = dNbardx(1:n_nodes,1)-dNdx(1:n_nodes,1)
-            B_aug(1,2:2*n_nodes:2) = dNbardx(1:n_nodes,2)-dNdx(1:n_nodes,2)
-            B_aug(2,1:2*n_nodes-1:2) = dNbardx(1:n_nodes,1)-dNdx(1:n_nodes,1)
-            B_aug(2,2:2*n_nodes:2) = dNbardx(1:n_nodes,2)-dNdx(1:n_nodes,2)
-            B = B + (1/2)*B_aug
-        endif
 
-        strain = matmul(B,dof_total)
-        dstrain = matmul(B,dof_increment)
+
+        vals = matmul(B,dof_total)
+        dvals = matmul(B,dof_increment)
       
-        stress = matmul(D,strain+dstrain)
         element_residual(1:2*n_nodes) = element_residual(1:2*n_nodes) - matmul(transpose(B),stress)*w(kint)*determinant
 
         element_stiffness(1:2*n_nodes,1:2*n_nodes) = element_stiffness(1:2*n_nodes,1:2*n_nodes) &
