@@ -4645,7 +4645,7 @@
 
         INITIAL DOF
           USER SUBROUTINE
-            0.01d0,15.d0
+            .01d0,15.d0
           END USER SUBROUTINE
         END INITIAL DOF
 
@@ -4656,7 +4656,7 @@
 %     The parameters are no. nodes on the element, total no. state variables, integer identifier
 
       ELEMENTS
-        PARAMETERS, 4, 0, 600
+        PARAMETERS, 4, 0, 1005
 %       Define element properties - the values are passed to user subroutine elstif in the order they are listed here
 %       For the example provided, the params are diffusion coefficient, kappa, theta
         PROPERTIES
@@ -9177,7 +9177,7 @@
 
 %   The CHECK STIFFNESS key tests the element subroutine to ensure that
 %   the residual force vector is consistent with the stiffness
-%       CHECK STIFFNESS, 600
+      CHECK STIFFNESS, 1005
 %       STOP
 
 
@@ -9192,10 +9192,10 @@
           INITIAL TIME STEP, 1.d-03    
           MAX TIME STEP, 1.d-03
           MIN TIME STEP, 1.d-05
-          MAX NUMBER OF STEPS, 50
+          MAX NUMBER OF STEPS, 100
           STOP TIME, 10.d0
           STATE PRINT STEP INTERVAL, 1
-          USER PRINT STEP INTERVAL, 100
+          USER PRINT STEP INTERVAL, 200
 
 
 
