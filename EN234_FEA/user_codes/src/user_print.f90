@@ -2,7 +2,9 @@ subroutine user_print(n_steps)
   use Types
   use ParamIO
   use Globals, only : TIME, DTIME
-!  use Mesh
+  use Mesh, only : extract_element_data
+  use Mesh, only : extract_node_data
+  use Mesh, only : zone,zone_list
   use Printparameters, only : n_user_print_files                  ! No. files specified by the user
   use Printparameters, only : n_user_print_parameters             ! No. user supplied print parameters
   use Printparameters, only : user_print_units                    ! Unit numbers
@@ -12,13 +14,16 @@ subroutine user_print(n_steps)
   
   integer, intent(in) :: n_steps                                 ! Current step number
   
-  integer ::  lmn
+  integer ::  lmn, lmn_start, lmn_end
   integer ::  status
   integer ::  n_state_vars_per_intpt                                         ! No. state variables per integration point
+  integer :: iforce, ninc, idisp
   real (prec) ::   vol_averaged_strain(6)                                    ! Volume averaged strain in an element
 !  real (prec), allocatable ::   vol_averaged_state_variables(:)              ! Volume averaged state variables in an element
 !  real (prec) :: J_value                                                     !J integral value
   real (prec) :: vol_averaged_stress(6)                                                   ! volume averaged stress (for hypoelastic)
+  real (prec) :: Dof1(6), Dof2(6)
+  real (prec) :: xs(11), Forces(11), Disps(11)
 
 
 !
@@ -66,15 +71,43 @@ subroutine user_print(n_steps)
  !   write(user_print_units(1),*) J_value
 
  !! Hypoelastic vol averaged stress/strain
-    lmn = 1
-    vol_averaged_strain = 0.d0
-    vol_averaged_stress = 0.d0
-    call compute_hypo_stress(lmn,vol_averaged_strain, vol_averaged_stress)
-    !write(user_print_units(1),'(A)') 'Volume Averaged Strain'
-    !write(user_print_units(1),*) vol_averaged_strain
-    !write(user_print_units(1),'(A)') 'Volume Averaged Stress'
-    !write(user_print_units(1),*) vol_averaged_stress
-    write(user_print_units(1),*) vol_averaged_strain(1), ',', vol_averaged_strain(2), ',', vol_averaged_stress(1), ';'
+ !   lmn = 1
+ !   vol_averaged_strain = 0.d0
+ !   vol_averaged_stress = 0.d0
+ !   call compute_hypo_stress(lmn,vol_averaged_strain, vol_averaged_stress)
+ !   !write(user_print_units(1),'(A)') 'Volume Averaged Strain'
+ !   !write(user_print_units(1),*) vol_averaged_strain
+ !   !write(user_print_units(1),'(A)') 'Volume Averaged Stress'
+ !   !write(user_print_units(1),*) vol_averaged_stress
+ !   write(user_print_units(1),*) vol_averaged_strain(1), ',', vol_averaged_strain(2), ',', vol_averaged_stress(1), ';'
+
+ !! Timoshenko Stress Output
+  !  You can access the first and last element using
+    lmn_start = zone_list(1)%start_element
+    lmn_end = zone_list(1)%end_element
+    write(user_print_units(1), '(A)') 'Time:'
+    write(user_print_units(1), *) TIME
+    iforce = user_print_parameters(1)
+    idisp = user_print_parameters(2)
+    ninc = 10
+    do lmn = lmn_start,lmn_end ! loop through elements
+        Dof1 = 0.d0
+        Dof2 = 0.d0
+        xs = 0.d0
+        Forces = 0.d0
+        call Timoshenko_Print(lmn, Dof1, Dof2, xs, Forces, Disps, ninc, iforce, idisp)
+        write(user_print_units(1), '(A)') '    Element Number: '
+        write(user_print_units(1), *) '    ', lmn
+        write(user_print_units(1), '(A)') '    Dof1 - [u1,v1,w1,phi1,psi1,theta1,...]'
+        write(user_print_units(1), *) '    ', Dof1
+        write(user_print_units(1), '(A)') '    Dof2 - [u1,v1,w1,phi1,psi1,theta1,...]'
+        write(user_print_units(1), *) '    ', Dof2
+        !clunkiest way to do this, but whatever
+        write(user_print_units(1), *) '     x positions (element cs only, matlab readable): [', xs, ']'
+        write(user_print_units(1), *) '     Forces (matlab readable): [', Forces, ']'
+        write(user_print_units(1), *) '     Displacements (matlab readable): [', Disps, ']'
+
+    end do
 
 end subroutine user_print
 
@@ -580,4 +613,227 @@ subroutine compute_hypo_stress(lmn, vol_averaged_strain, vol_averaged_stress)
 
     return
 end subroutine compute_hypo_stress
+
+subroutine Timoshenko_Print(lmn, Dof1, Dof2, xs, Forces, Disps, ninc, iforce, idisp)
+    use Types
+    use ParamIO
+    use Mesh, only : extract_element_data
+    use Mesh, only : extract_node_data
+    use Mesh, only : zone,zone_list
+    use User_Subroutine_Storage
+    implicit none
+
+    integer, intent( in )  ::  lmn
+    integer, intent( in )  ::  ninc, iforce, idisp !number of increments and which force to output
+    real (prec), intent( out )  :: Dof1(6), Dof2(6)
+    real (prec), intent( out )  :: xs(ninc), Forces(ninc), Disps(ninc) !internal forces and the increments they're at
+
+
+    ! Local variables
+
+    integer    :: node_identifier                              ! Flag identifying node type
+    integer    :: element_identifier                           ! Flag identifying element type (specified in .in file)
+    integer    :: n_nodes                                      ! # nodes on the element
+    integer    :: n_properties                                 ! # properties for the element
+    integer    :: n_state_variables                            ! # state variables for the element
+    integer    :: n_coords                                     ! No. coords for a node
+    integer    :: n_dof                                        ! No. DOFs for a node
+
+    integer      :: status
+    integer      :: iof
+    integer      :: lmn_start,lmn_end ! First and last crack tip element
+    integer      :: i                 ! Loop counter
+
+!   The arrays below have to be given dimensions large enough to store the data. It doesnt matter if they are too large.
+
+    integer, allocatable    :: node_list(:)                                ! List of nodes on the element (connectivity)
+
+    real( prec ), allocatable   :: element_properties(:)                  ! Element or material properties, stored in order listed in input file
+    real( prec ), allocatable   :: initial_state_variables(:)             ! Element state variables at start of step.
+    real( prec ), allocatable   :: updated_state_variables(:)             ! State variables at end of time step
+
+    real( prec ), allocatable   :: x(:,:)                                  ! Nodal coords x(i,a) is ith coord of ath node
+    real( prec ), allocatable   :: dof_increment(:)                        ! DOF increment, [u1,v1,w1,phi1,psi1,theta1,...]
+    real( prec ), allocatable   :: dof_total(:)                            ! accumulated DOF, same convention as increment
+
+    real (prec), allocatable  ::  B(:,:)                                   ! strain = B*(dof_total+dof_increment)
+
+    ! Local Variables
+    integer      :: n_points,kint
+
+    real (prec)  ::  intForce(6)                       ! [N, Mz, My, Qy, Qz, Mx]
+    real (prec)  ::  strain(6), dstrain(6)             ! generalized strains [e, ky, kz, gy, gz, kx]
+    real (prec)  ::  D(6,6)                            ! Material matrix
+    real (prec)  ::  N(18), dNdx(18)                   ! array of shape functions and derivatives [N1, N2, Hv1, Hv2, Hw1, Hw2, Ht1, Ht2, Hp1, Hp2, Gv1, Gv2, Gw1, Gw2, Gt1, Gt2, Gp1, Gp2]
+    real (prec)  ::  dxidx, det, w, xi                 ! values to calculate
+    real (prec)  ::  E, G, A, k, Iz, Iy                ! Material properties
+    real (prec)  ::  L                                 ! Calculated Length
+    real (prec)  :: ay, by, az, bz                     ! constants in shape functions
+    real (prec)  :: F(6,12), dispInt(6)                ! Matrix to interpolate DOFs
+    !
+    !
+    !  The variables specifying the sizes of the arrays listed below are determined while reading the input file
+    !  They specify the array dimensions required to store the relevant variables for _any_ element or node in the mesh
+    !  The actual data will vary depending on the element or node selected
+    !
+    allocate(node_list(length_node_array), stat=status)
+    allocate(element_properties(length_property_array), stat=status)
+    allocate(initial_state_variables(length_state_variable_array), stat=status)
+    allocate(updated_state_variables(length_state_variable_array), stat=status)
+    allocate(x(3,length_coord_array/3), stat=status)
+    allocate(dof_increment(length_dof_array), stat=status)
+    allocate(dof_total(length_dof_array), stat=status)
+    allocate(B(6,12), stat=status)
+
+  !  The two subroutines below extract data for elements and nodes (see module Mesh.f90 for the source code for these subroutines)
+
+
+    !!! begin my code
+
+
+
+    call extract_element_data(lmn,element_identifier,n_nodes,node_list,n_properties,element_properties, &
+                                           n_state_variables,initial_state_variables,updated_state_variables)
+
+
+    do i = 1, n_nodes
+        iof = 6*(i-1)+1     ! Points to first DOF for the node in the dof_increment and dof_total arrays
+        call extract_node_data(node_list(i),node_identifier,n_coords,x(1:3,i),n_dof, &
+                                                 dof_increment(iof:iof+5),dof_total(iof:iof+5))
+    end do
+
+    Dof1 = dof_total(1:6) + dof_increment(1:6)
+    Dof2 = dof_total(7:12) + dof_increment(7:12)
+
+    ! pull out properties and set up D matrix and shape function constatns
+    E = element_properties(1)
+    G = element_properties(2)
+    A = element_properties(3)
+    k = element_properties(4)
+    Iz = element_properties(5)
+    Iy = element_properties(6)
+
+    D = 0.d0
+    D(1,1) = E*A
+    D(2,2) = E*Iy
+    D(3,3) = E*Iz
+    D(4,4) = k*G*A
+    D(5,5) = k*G*A
+    D(6,6) = k*G*(Iy+Iz)
+
+    L = sqrt((x(1,1)-x(1,2))**2+(x(2,1)-x(2,2))**2+(x(3,1)-x(3,2))**2)
+    ay = 12.d0*E*Iy/(k*G*A*L**2)
+    by = 1.d0/(1.d0-ay)
+
+    az = 12.d0*E*Iz/(k*G*A*L**2)
+    bz = 1.d0/(1.d0-az)
+
+
+    ! set up interation points & etc
+    w = 1.d0
+    dxidx = 1.d0/L !note difference from typical because of luo's convention of xi = 0->1
+    det = L/2.d0
+
+    do kint = 0,ninc
+    ! calculate shape functions and derivatives
+    N = 0.d0
+    dNdx = 0.d0
+    xi = real(kint)/real(ninc)
+    xs(kint+1) = xi*L
+
+    N(1) = 1-xi
+    N(2) = xi
+    N(3) = by*(2.d0*xi**3-3.d0*xi**2+ay*xi+1.d0-ay)
+    N(4) = by*(-2.d0*xi**3+3.d0*xi**2-ay*xi)
+    N(5) = bz*(2.d0*xi**3-3.d0*xi**2+az*xi+1.d0-az)
+    N(6) = bz*(-2.d0*xi**3+3.d0*xi**2-az*xi)
+    N(7) = L*by*(xi**3+(ay/2.d0-2.d0)*xi**2+(1.d0-ay/2.d0)*xi)
+    N(8) = L*by*(xi**3-(1.d0+ay/2.d0)*xi**2+ay*xi/2.d0)
+    N(9) = L*bz*(xi**3+(az/2.d0-2.d0)*xi**2+(1.d0-az/2.d0)*xi)
+    N(10) = L*bz*(xi**3-(1.d0+az/2.d0)*xi**2+az*xi/2.d0)
+    N(11) = 6.d0*by/L*(xi**2-xi)
+    N(12) = 6.d0*by/L*(-(xi**2)+xi)
+    N(13) = 6.d0*bz/L*(xi**2-xi)
+    N(14) = 6.d0*bz/L*(-(xi**2)+xi)
+    N(15) = by*(3.d0*xi**2+(ay-4.d0)*xi+1.d0-ay)
+    N(16) = by*(3.d0*xi**2-(ay+2.d0)*xi)
+    N(17) = bz*(3.d0*xi**2+(az-4.d0)*xi+1.d0-az)
+    N(18) = bz*(3.d0*xi**2-(az+2.d0)*xi)
+
+    dNdx(1) = -1
+    dNdx(2) = 1
+    dNdx(3) = by*(ay - 6.d0*xi + 6.d0*xi**2)
+    dNdx(4) = by*(-ay + 6.d0*xi - 6.d0*xi**2)
+    dNdx(5) = bz*(az - 6.d0*xi + 6.d0*xi**2)
+    dNdx(6) = bz*(-az + 6.d0*xi - 6.d0*xi**2)
+    dNdx(7) = by*L*(1.d0 - ay/2.d0 + 2.d0*(-2.d0 + ay/2.d0)*xi + 3.d0*xi**2)
+    dNdx(8) = by*L*(ay/2.d0 - 2.d0*(1.d0 + ay/2.d0)*xi + 3.d0*xi**2)
+    dNdx(9) = bz*L*(1.d0 - az/2.d0 + 2.d0*(-2.d0 + az/2.d0)*xi + 3.d0*xi**2)
+    dNdx(10) = bz*L*(az/2.d0 - 2.d0*(1.d0 + az/2.d0)*xi + 3.d0*xi**2)
+    dNdx(11) = (6.d0*by*(-1.d0 + 2.d0*xi))/L
+    dNdx(12) = (6.d0*by*(1.d0 - 2.d0*xi))/L
+    dNdx(13) = (6.d0*bz*(-1.d0 + 2.d0*xi))/L
+    dNdx(14) = (6.d0*bz*(1.d0 - 2.d0*xi))/L
+    dNdx(15) = by*(-4.d0 + ay + 6.d0*xi)
+    dNdx(16) = by*(-2.d0 - ay + 6.d0*xi)
+    dNdx(17) = bz*(-4.d0 + az + 6.d0*xi)
+    dNdx(18) = bz*(-2.d0 - az + 6.d0*xi)
+
+    dNdx = dNdx*dxidx
+
+
+    ! Populate B matrix
+    B = 0.d0
+    B(1,1:7:6) = dNdx(1:2)
+    B(2,2:8:6) = -dNdx(11:12)
+    B(2,6:12:6) = -dNdx(15:16)
+    B(3,3:9:6) = dNdx(13:14)
+    B(3,5:11:6) = dNdx(17:18)
+    B(4,2:8:6) = dNdx(3:4)-N(11:12)
+    B(4,6:12:6) = dNdx(7:8)-N(15:16)
+    B(5,3:9:6) = dNdx(5:6)+N(13:14)
+    B(5,5:11:6) = dNdx(9:10)+N(17:18)
+    B(6,4:10:6) = dNdx(1:2)
+
+    !populate F matrix
+    F = 0.d0
+    F(1,1:7:6) = N(1:2)
+    F(2,2:8:6) = N(3:4)
+    F(2,6:12:6) = N(7:8)
+    F(3,3:9:6) = N(5:6)
+    F(3,5:11:6) = N(9:10)
+    F(4,4:10:6) = N(1:2)
+    F(5,3:9:6) = N(13:14)
+    F(5,5:11:6) = N(17:18)
+    F(6,2:8:6) = N(11:12)
+    F(6,6:12:6) = N(15:16)
+
+
+    strain = matmul(B,dof_total)
+    dstrain = matmul(B,dof_increment)
+    intForce = matmul(D,strain+dstrain)
+    Forces(kint+1) = intForce(iforce)
+    dispInt = matmul(F,dof_total+dof_increment)
+    Disps(kint+1) = dispInt(idisp)
+
+    end do
+
+    !!! end my code
+
+    deallocate(node_list)
+    deallocate(element_properties)
+    deallocate(initial_state_variables)
+    deallocate(updated_state_variables)
+    deallocate(x)
+    deallocate(dof_increment)
+    deallocate(dof_total)
+    deallocate(B)
+
+
+    return
+
+
+
+
+end subroutine Timoshenko_Print
 

@@ -131,15 +131,21 @@ program en234fea
 
 
 !!  Homework 9, Dynamic fracture with explicit dynamics, finite strain Gurson model.
-  infil = './input_files/Gurson_3d_dynamic.in'
-  open (unit = IOR, file = infil, status = 'old', ERR=500)
-  outfil = './Output_files/Gurson_3d_dynamic.out'
-  open (UNIT = IOW, FILE = outfil, STATUS = 'unknown', ERR=500)
+!  infil = './input_files/Gurson_3d_dynamic.in'
+!  open (unit = IOR, file = infil, status = 'old', ERR=500)
+!  outfil = './Output_files/Gurson_3d_dynamic.out'
+!  open (UNIT = IOW, FILE = outfil, STATUS = 'unknown', ERR=500)
 
 !  infil = './input_files/notch_fracture_dynamic.in'
 !  open (unit = IOR, file = infil, status = 'old', ERR=500)
 !  outfil = './Output_files/notch_fracture_dynamic.out'
 !  open (UNIT = IOW, FILE = outfil, STATUS = 'unknown', ERR=500)
+
+!!  Project -- Timoshenko beam model
+  infil = './input_files/Timoshenko_3d.in'
+  open (unit = IOR, file = infil, status = 'old', ERR=500)
+  outfil = './Output_files/Timoshenko_3d.out'
+  open (UNIT = IOW, FILE = outfil, STATUS = 'unknown', ERR=500)
 
   call read_input_file
   
