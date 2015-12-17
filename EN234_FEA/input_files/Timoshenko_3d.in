@@ -166,8 +166,8 @@
           END USER PRINT FILES
           USER PRINT PARAMETERS
 %            list of parameters to be passed to the subroutine
-%		     parameters are the force index to output and displacement index to output
-             2, 6
+%		     parameters are the force index to output, displacement index to output, and strain index to output
+             2, 6, 2
           END USER print PARAMETERS
 
         END STATIC STEP

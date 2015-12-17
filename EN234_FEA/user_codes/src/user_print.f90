@@ -17,13 +17,13 @@ subroutine user_print(n_steps)
   integer ::  lmn, lmn_start, lmn_end
   integer ::  status
   integer ::  n_state_vars_per_intpt                                         ! No. state variables per integration point
-  integer :: iforce, ninc, idisp
+  integer :: iforce, ninc, idisp, istrain
   real (prec) ::   vol_averaged_strain(6)                                    ! Volume averaged strain in an element
 !  real (prec), allocatable ::   vol_averaged_state_variables(:)              ! Volume averaged state variables in an element
 !  real (prec) :: J_value                                                     !J integral value
   real (prec) :: vol_averaged_stress(6)                                                   ! volume averaged stress (for hypoelastic)
   real (prec) :: Dof1(6), Dof2(6)
-  real (prec) :: xs(11), Forces(11), Disps(11)
+  real (prec) :: xs(11), Forces(11), Disps(11), Strains(11)
 
 
 !
@@ -89,13 +89,15 @@ subroutine user_print(n_steps)
     write(user_print_units(1), *) TIME
     iforce = user_print_parameters(1)
     idisp = user_print_parameters(2)
+    istrain = user_print_parameters(3)
     ninc = 10
     do lmn = lmn_start,lmn_end ! loop through elements
         Dof1 = 0.d0
         Dof2 = 0.d0
         xs = 0.d0
         Forces = 0.d0
-        call Timoshenko_Print(lmn, Dof1, Dof2, xs, Forces, Disps, ninc, iforce, idisp)
+        Strains = 0.d0
+        call Timoshenko_Print(lmn, Dof1, Dof2, xs, Forces, Disps, Strains, ninc, iforce, idisp, istrain)
         write(user_print_units(1), '(A)') '    Element Number: '
         write(user_print_units(1), *) '    ', lmn
         write(user_print_units(1), '(A)') '    Dof1 - [u1,v1,w1,phi1,psi1,theta1,...]'
@@ -103,9 +105,10 @@ subroutine user_print(n_steps)
         write(user_print_units(1), '(A)') '    Dof2 - [u1,v1,w1,phi1,psi1,theta1,...]'
         write(user_print_units(1), *) '    ', Dof2
         !clunkiest way to do this, but whatever
-        write(user_print_units(1), *) '     x positions (element cs only, matlab readable): [', xs, ']'
-        write(user_print_units(1), *) '     Forces (matlab readable): [', Forces, ']'
-        write(user_print_units(1), *) '     Displacements (matlab readable): [', Disps, ']'
+        write(user_print_units(1), *) '     x positions (element cs only, matlab readable): [', xs, '];'
+        write(user_print_units(1), *) '     Forces (matlab readable): [', Forces, '];'
+        write(user_print_units(1), *) '     Displacements (matlab readable): [', Disps, '];'
+        write(user_print_units(1), *) '     Strains (matlab readable): [', Strains, '];'
 
     end do
 
@@ -614,7 +617,7 @@ subroutine compute_hypo_stress(lmn, vol_averaged_strain, vol_averaged_stress)
     return
 end subroutine compute_hypo_stress
 
-subroutine Timoshenko_Print(lmn, Dof1, Dof2, xs, Forces, Disps, ninc, iforce, idisp)
+subroutine Timoshenko_Print(lmn, Dof1, Dof2, xs, Forces, Disps, Strains, ninc, iforce, idisp, istrain)
     use Types
     use ParamIO
     use Mesh, only : extract_element_data
@@ -624,9 +627,9 @@ subroutine Timoshenko_Print(lmn, Dof1, Dof2, xs, Forces, Disps, ninc, iforce, id
     implicit none
 
     integer, intent( in )  ::  lmn
-    integer, intent( in )  ::  ninc, iforce, idisp !number of increments and which force to output
+    integer, intent( in )  ::  ninc, iforce, idisp, istrain !number of increments and which force to output
     real (prec), intent( out )  :: Dof1(6), Dof2(6)
-    real (prec), intent( out )  :: xs(ninc), Forces(ninc), Disps(ninc) !internal forces and the increments they're at
+    real (prec), intent( out )  :: xs(ninc), Forces(ninc), Disps(ninc), Strains(ninc) !internal forces and the increments they're at, etc
 
 
     ! Local variables
@@ -815,6 +818,7 @@ subroutine Timoshenko_Print(lmn, Dof1, Dof2, xs, Forces, Disps, ninc, iforce, id
     Forces(kint+1) = intForce(iforce)
     dispInt = matmul(F,dof_total+dof_increment)
     Disps(kint+1) = dispInt(idisp)
+    Strains(kint+1) = strain(istrain)+dstrain(istrain)
 
     end do
 
